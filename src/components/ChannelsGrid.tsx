@@ -22,7 +22,7 @@ interface ChannelsGridProps {
   channels: Channel[];
   onRemoveChannel: (id: string) => void;
   userTags: string[];
-  onUpdateTag: (channelId: string, tag: string | null) => void;
+  onUpdateTag: (channelId: string, tag: string | null) => Promise<void>;
 }
 
 export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUpdateTag }: ChannelsGridProps) {
@@ -80,11 +80,16 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
     setTagInput(channel.tag || '');
   };
 
-  const handleTagSave = (channelId: string) => {
+  const handleTagSave = async (channelId: string) => {
     const trimmedTag = tagInput.trim();
-    onUpdateTag(channelId, trimmedTag || null);
-    setEditingTagChannel(null);
-    setTagInput('');
+    try {
+      await onUpdateTag(channelId, trimmedTag || null);
+      setEditingTagChannel(null);
+      setTagInput('');
+    } catch (err) {
+      console.error('Failed to save tag:', err);
+      alert('Failed to save tag. Make sure the database has the tag column.');
+    }
   };
 
   const handleTagRemove = (e: React.MouseEvent, channelId: string) => {
@@ -92,10 +97,15 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
     onUpdateTag(channelId, null);
   };
 
-  const handleTagSelect = (channelId: string, tag: string) => {
-    onUpdateTag(channelId, tag);
-    setEditingTagChannel(null);
-    setTagInput('');
+  const handleTagSelect = async (channelId: string, tag: string) => {
+    try {
+      await onUpdateTag(channelId, tag);
+      setEditingTagChannel(null);
+      setTagInput('');
+    } catch (err) {
+      console.error('Failed to save tag:', err);
+      alert('Failed to save tag. Make sure the database has the tag column.');
+    }
   };
 
   const filteredTags = userTags.filter(t => 

@@ -179,14 +179,12 @@ export default function Home() {
   };
 
   const handleUpdateTag = async (channelId: string, tag: string | null) => {
-    try {
-      await updateChannelTag(channelId, tag);
-      setChannels(channels.map(ch => ch.id === channelId ? { ...ch, tag } : ch));
-      // Add new tag to userTags if it doesn't exist
-      if (tag && !userTags.includes(tag)) {
-        setUserTags([...userTags, tag]);
-      }
-    } catch (err) { console.error('Error updating tag:', err); }
+    await updateChannelTag(channelId, tag);
+    setChannels(channels.map(ch => ch.id === channelId ? { ...ch, tag } : ch));
+    // Add new tag to userTags if it doesn't exist
+    if (tag && !userTags.includes(tag)) {
+      setUserTags([...userTags, tag]);
+    }
   };
 
   const handleNewProfile = () => {
