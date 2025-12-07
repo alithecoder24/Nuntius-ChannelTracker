@@ -65,120 +65,145 @@ export default function Home() {
     timeWindow: '48h', videoAmount: '10', minViews: '', maxViews: '', minLength: '', maxLength: '', searchQuery: '',
   });
 
+  // Initialize auth - runs once
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      // When user logs in, try to link their account to team_members
-      if (session?.user?.email) {
-        try {
-          await linkUserToTeamMember(session.user.id, session.user.email);
-        } catch (err) {
-          // Ignore - they might not be in team_members yet
-        }
+    let mounted = true;
+    
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    };
+    
+    initAuth();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null);
       }
     });
-    return () => subscription.unsubscribe();
+    
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
+  // When user changes, check access and load data
   useEffect(() => {
-    if (user) {
-      checkAccess();
-    } else { 
-      setTeamMember(null);
-      setTeamMembers([]);
-      setProfiles([]); 
-      setChannels([]); 
-      setActiveProfile(null); 
-      setUserTags([]); 
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // Only re-run when user ID changes, not the whole user object
-
-  const checkAccess = async () => {
-    if (!user) return;
-    try {
-      // Link user to team member record if exists (ignore errors)
-      if (user.email) {
-        try {
-          await linkUserToTeamMember(user.id, user.email);
-        } catch (e) {
-          // Ignore link errors
-        }
+    let mounted = true;
+    
+    const loadUserData = async () => {
+      if (!user) {
+        setTeamMember(null);
+        setTeamMembers([]);
+        setProfiles([]);
+        setChannels([]);
+        setActiveProfile(null);
+        setUserTags([]);
+        return;
       }
-      const member = await checkTeamMembership(user.id);
-      setTeamMember(member);
-      if (member) {
-        await loadProfiles();
-        await loadTags();
-        if (member.role === 'owner' || member.role === 'admin') {
-          await loadTeamMembers();
+      
+      try {
+        // Try to link user to team member record
+        if (user.email) {
+          try {
+            await linkUserToTeamMember(user.id, user.email);
+          } catch (e) {
+            // Ignore
+          }
         }
+        
+        // Check team membership
+        const member = await checkTeamMembership(user.id);
+        if (!mounted) return;
+        
+        setTeamMember(member);
+        
+        if (member) {
+          // Load profiles
+          const profilesData = await getProfiles(user.id);
+          if (!mounted) return;
+          
+          const mappedProfiles = profilesData.map(p => ({
+            id: p.id,
+            name: p.name,
+            visibility: (p.visibility || 'team') as 'private' | 'team',
+            createdBy: p.created_by || user.id
+          }));
+          setProfiles(mappedProfiles);
+          
+          // Set first profile as active if none selected
+          if (mappedProfiles.length > 0) {
+            setActiveProfile(prev => prev || mappedProfiles[0].id);
+          }
+          
+          // Load tags
+          try {
+            const tags = await getTags();
+            if (mounted) setUserTags(tags);
+          } catch (e) {
+            console.error('Error loading tags:', e);
+          }
+          
+          // Load team members for admin/owner
+          if (member.role === 'owner' || member.role === 'admin') {
+            try {
+              const members = await getTeamMembers();
+              if (mounted) setTeamMembers(members);
+            } catch (e) {
+              console.error('Error loading team members:', e);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading user data:', err);
+        if (mounted) setTeamMember(null);
       }
-    } catch (err) { 
-      console.error('Error checking access:', err);
-      setTeamMember(null);
-    }
-  };
+    };
+    
+    loadUserData();
+    
+    return () => { mounted = false; };
+  }, [user?.id]);
 
-  const loadTeamMembers = async () => {
-    try {
-      const members = await getTeamMembers();
-      setTeamMembers(members);
-    } catch (err) { console.error('Error loading team members:', err); }
-  };
-
+  // Load channels when active profile changes
   useEffect(() => {
-    if (activeProfile) loadChannels(activeProfile);
-    else setChannels([]);
+    let mounted = true;
+    
+    const loadChannelData = async () => {
+      if (!activeProfile) {
+        setChannels([]);
+        return;
+      }
+      
+      try {
+        const data = await getChannels(activeProfile);
+        if (mounted) {
+          setChannels(data.map(ch => ({
+            id: ch.id,
+            channel_id: ch.channel_id,
+            name: ch.name,
+            thumbnail_url: ch.thumbnail_url || '',
+            subscribers: ch.subscribers,
+            video_count: ch.video_count || '0',
+            views28d: ch.views_28d || '0',
+            views48h: ch.views_48h || '0',
+            language: ch.language,
+            tag: ch.tag || null,
+          })));
+        }
+      } catch (err) {
+        console.error('Error loading channels:', err);
+      }
+    };
+    
+    loadChannelData();
+    
+    return () => { mounted = false; };
   }, [activeProfile]);
-
-  const loadProfiles = async () => {
-    if (!user) return;
-    try {
-      const data = await getProfiles(user.id);
-      const mappedProfiles = data.map(p => ({ 
-        id: p.id, 
-        name: p.name, 
-        visibility: (p.visibility || 'team') as 'private' | 'team',
-        createdBy: p.created_by || user.id
-      }));
-      setProfiles(mappedProfiles);
-      if (mappedProfiles.length > 0 && !activeProfile) {
-        setActiveProfile(mappedProfiles[0].id);
-      }
-    } catch (err) { 
-      console.error('Error loading profiles:', err); 
-    }
-  };
-
-  const loadChannels = async (profileId: string) => {
-    try {
-      const data = await getChannels(profileId);
-      setChannels(data.map(ch => ({
-        id: ch.id,
-        channel_id: ch.channel_id,
-        name: ch.name,
-        thumbnail_url: ch.thumbnail_url || '',
-        subscribers: ch.subscribers,
-        video_count: ch.video_count || '0',
-        views28d: ch.views_28d || '0',
-        views48h: ch.views_48h || '0',
-        language: ch.language,
-        tag: ch.tag || null,
-      })));
-    } catch (err) { console.error('Error loading channels:', err); }
-  };
-
-  const loadTags = async () => {
-    try {
-      const tags = await getTags();
-      setUserTags(tags);
-    } catch (err) { console.error('Error loading tags:', err); }
-  };
 
   const handleCreateProfile = async (name: string, visibility: 'private' | 'team' = 'team') => {
     if (!user) return;
