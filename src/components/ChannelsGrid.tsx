@@ -26,13 +26,16 @@ interface ChannelsGridProps {
 }
 
 export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUpdateTag }: ChannelsGridProps) {
-  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Channel | null>(null);
   const [editingTagChannel, setEditingTagChannel] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
+
+  // Get the current channel data from the channels array (so it updates when tag changes)
+  const selectedChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) || null : null;
 
   useEffect(() => {
     if (editingTagChannel && tagInputRef.current) {
@@ -55,7 +58,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
   }, [editingTagChannel]);
 
   const openStats = (channel: Channel) => {
-    setSelectedChannel(channel);
+    setSelectedChannelId(channel.id);
     setIsModalOpen(true);
   };
 
@@ -245,7 +248,10 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
       {/* Stats Modal */}
       <ChannelStatsModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedChannelId(null);
+        }}
         channel={selectedChannel}
         userTags={userTags}
         onUpdateTag={onUpdateTag}
