@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Modal from './Modal';
-import { Plus, Link, Loader2 } from 'lucide-react';
+import { Plus, Link, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface AddChannelModalProps {
   isOpen: boolean;
@@ -17,10 +17,28 @@ interface AddChannelModalProps {
   }) => Promise<void>;
 }
 
+interface YouTubeChannelData {
+  channel_id: string;
+  handle: string | null;
+  name: string;
+  description: string;
+  thumbnail_url: string;
+  subscriber_count: string;
+  subscriber_count_formatted: string;
+  video_count_formatted: string;
+  view_count_formatted: string;
+  country: string | null;
+  from_cache: boolean;
+}
+
 // Parse various YouTube URL formats to extract channel identifier
 function parseYouTubeUrl(url: string): { type: string; id: string } | null {
-  // Clean up the URL
   let cleanUrl = url.trim();
+  
+  // If it's just a handle like @MrBeast
+  if (cleanUrl.startsWith('@')) {
+    return { type: 'handle', id: cleanUrl };
+  }
   
   // Add https if missing
   if (!cleanUrl.startsWith('http')) {
@@ -36,8 +54,6 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
     }
 
     const pathname = urlObj.pathname;
-
-    // Remove trailing segments like /videos, /shorts, /streams, /playlists, /community, /about, /featured
     const cleanPath = pathname.replace(/\/(videos|shorts|streams|playlists|community|about|featured|live)?\/?$/, '');
 
     // Format: youtube.com/channel/UC...
@@ -66,7 +82,7 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
 
     // Direct handle without @ (youtube.com/MrBeast)
     const directMatch = cleanPath.match(/^\/([a-zA-Z0-9_.-]+)$/);
-    if (directMatch && !['watch', 'feed', 'gaming', 'music', 'premium'].includes(directMatch[1])) {
+    if (directMatch && !['watch', 'feed', 'gaming', 'music', 'premium', 'results'].includes(directMatch[1])) {
       return { type: 'handle', id: '@' + directMatch[1] };
     }
 
@@ -78,24 +94,55 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
 
 export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddChannelModalProps) {
   const [channelUrl, setChannelUrl] = useState('');
-  const [channelName, setChannelName] = useState('');
   const [language, setLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
+  const [channelData, setChannelData] = useState<YouTubeChannelData | null>(null);
+
+  // Fetch channel data from YouTube API
+  const fetchChannelData = async (identifier: string) => {
+    setFetching(true);
+    setError('');
+    setChannelData(null);
+
+    try {
+      const resp = await fetch(`/api/youtube/channel?id=${encodeURIComponent(identifier)}`);
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to fetch channel');
+      }
+
+      setChannelData(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch channel data');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  // When URL changes, try to fetch channel data
+  const handleUrlChange = (value: string) => {
+    setChannelUrl(value);
+    setChannelData(null);
+    setError('');
+
+    const parsed = parseYouTubeUrl(value);
+    if (parsed) {
+      // Debounce the fetch
+      const timeoutId = setTimeout(() => {
+        fetchChannelData(parsed.id);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    // Parse the URL
-    const parsed = parseYouTubeUrl(channelUrl);
-    if (!parsed) {
-      setError('Invalid YouTube channel URL. Please enter a valid channel link.');
-      return;
-    }
-
-    if (!channelName.trim()) {
-      setError('Please enter a channel name.');
+    
+    if (!channelData) {
+      setError('Please enter a valid YouTube channel URL');
       return;
     }
 
@@ -103,19 +150,15 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
 
     try {
       await onAddChannel({
-        channel_id: parsed.id,
-        name: channelName.trim(),
-        subscribers: '0',
+        channel_id: channelData.channel_id,
+        name: channelData.name,
+        subscribers: channelData.subscriber_count_formatted,
         subs_growth_28d: '0',
         subs_growth_48h: '0',
         language: language,
       });
       
-      // Reset form
-      setChannelUrl('');
-      setChannelName('');
-      setLanguage('English');
-      onClose();
+      handleClose();
     } catch (err: any) {
       setError(err.message || 'Failed to add channel');
     } finally {
@@ -125,13 +168,12 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
 
   const handleClose = () => {
     setChannelUrl('');
-    setChannelName('');
     setLanguage('English');
     setError('');
+    setChannelData(null);
     onClose();
   };
 
-  // Preview the parsed URL
   const parsed = channelUrl ? parseYouTubeUrl(channelUrl) : null;
 
   return (
@@ -146,40 +188,68 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
             <input
               type="text"
               value={channelUrl}
-              onChange={(e) => setChannelUrl(e.target.value)}
+              onChange={(e) => handleUrlChange(e.target.value)}
               placeholder="https://youtube.com/@channelname"
-              className="input-field pl-11"
+              className="input-field pl-11 pr-10"
               autoFocus
             />
+            {fetching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#a855f7] animate-spin" />
+            )}
+            {channelData && !fetching && (
+              <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />
+            )}
+            {error && !fetching && (
+              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />
+            )}
           </div>
           <p className="text-xs text-[#71717a] mt-2">
-            Supports: @handle, /channel/ID, /c/name, /user/name
+            Paste any YouTube channel link or @handle
           </p>
-          
-          {/* URL Preview */}
-          {channelUrl && (
-            <div className={`mt-2 p-2 rounded-lg text-xs ${parsed ? 'bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] text-[#86efac]' : 'bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5]'}`}>
-              {parsed ? (
-                <>✓ Detected: <span className="font-mono">{parsed.id}</span> ({parsed.type})</>
-              ) : (
-                <>✗ Could not parse URL</>
-              )}
-            </div>
-          )}
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">
-            Channel Name
-          </label>
-          <input
-            type="text"
-            value={channelName}
-            onChange={(e) => setChannelName(e.target.value)}
-            placeholder="e.g., MrBeast, Marques Brownlee"
-            className="input-field"
-          />
-        </div>
+        {/* Channel Preview */}
+        {channelData && (
+          <div className="p-4 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.2)]">
+            <div className="flex items-center gap-4">
+              {channelData.thumbnail_url && (
+                <img 
+                  src={channelData.thumbnail_url} 
+                  alt={channelData.name}
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-[#f8fafc] truncate">{channelData.name}</h4>
+                <p className="text-sm text-[#a1a1aa]">{channelData.handle || channelData.channel_id}</p>
+                <div className="flex items-center gap-4 mt-1 text-xs text-[#71717a]">
+                  <span><strong className="text-[#c084fc]">{channelData.subscriber_count_formatted}</strong> subscribers</span>
+                  <span><strong>{channelData.video_count_formatted}</strong> videos</span>
+                </div>
+              </div>
+            </div>
+            {channelData.from_cache && (
+              <p className="text-xs text-[#71717a] mt-3 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#86efac]"></span>
+                Loaded from cache (saves API calls!)
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Error for API issues */}
+        {error && !channelData && channelUrl && parsed && (
+          <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Invalid URL error */}
+        {channelUrl && !parsed && (
+          <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
+            Invalid YouTube URL format
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">
@@ -205,12 +275,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
           </select>
         </div>
 
-        {error && (
-          <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
-            {error}
-          </div>
-        )}
-
         <div className="flex gap-3 pt-2">
           <button
             type="button"
@@ -221,7 +285,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
           </button>
           <button
             type="submit"
-            disabled={loading || !parsed || !channelName.trim()}
+            disabled={loading || fetching || !channelData}
             className="flex-1 btn btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -236,4 +300,3 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
     </Modal>
   );
 }
-
