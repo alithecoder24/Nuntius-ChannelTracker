@@ -247,6 +247,8 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         channel={selectedChannel}
+        userTags={userTags}
+        onUpdateTag={onUpdateTag}
       />
 
       {/* Delete Confirmation Modal */}

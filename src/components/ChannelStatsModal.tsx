@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Loader2, TrendingUp, Users, Video, Eye } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Loader2, Users, Video, Eye, Tag, Check, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface ChannelStatsModalProps {
@@ -16,7 +16,10 @@ interface ChannelStatsModalProps {
     thumbnail_url: string;
     subscribers: string;
     video_count: string;
+    tag?: string | null;
   } | null;
+  userTags?: string[];
+  onUpdateTag?: (channelId: string, tag: string | null) => void;
 }
 
 interface DailyData {
@@ -47,17 +50,28 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelStatsModalProps) {
+export default function ChannelStatsModal({ isOpen, onClose, channel, userTags = [], onUpdateTag }: ChannelStatsModalProps) {
   const [timeRange, setTimeRange] = useState(28);
   const [dailyData, setDailyData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'views' | 'subscribers'>('views');
+  const [editingTag, setEditingTag] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && channel) {
       loadSnapshots();
+      setTagInput(channel.tag || '');
     }
   }, [isOpen, channel, timeRange]);
+
+  useEffect(() => {
+    if (editingTag && tagInputRef.current) {
+      tagInputRef.current.focus();
+    }
+  }, [editingTag]);
 
   const loadSnapshots = async () => {
     if (!channel) return;
@@ -65,7 +79,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
 
     try {
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - timeRange - 1); // Get one extra day for calculating first day's diff
+      startDate.setDate(startDate.getDate() - timeRange - 1);
 
       const { data, error } = await supabase
         .from('channel_snapshots')
@@ -76,7 +90,6 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
 
       if (error) throw error;
 
-      // Calculate daily gains (difference between consecutive days)
       const processed: DailyData[] = [];
       const rawData = data || [];
       
@@ -94,8 +107,8 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
           fullDate: current.created_at,
           views: currentViews,
           subscribers: currentSubs,
-          viewsGained: Math.max(0, currentViews - previousViews), // Views gained that day
-          subsGained: currentSubs - previousSubs, // Subs gained that day
+          viewsGained: Math.max(0, currentViews - previousViews),
+          subsGained: currentSubs - previousSubs,
         });
       }
 
@@ -107,44 +120,145 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
     }
   };
 
+  const handleSaveTag = () => {
+    if (channel && onUpdateTag) {
+      onUpdateTag(channel.id, tagInput.trim() || null);
+    }
+    setEditingTag(false);
+  };
+
+  const handleRemoveTag = () => {
+    if (channel && onUpdateTag) {
+      onUpdateTag(channel.id, null);
+      setTagInput('');
+    }
+    setEditingTag(false);
+  };
+
   if (!channel) return null;
 
-  // Calculate totals for the period
   const totalViewsGained = dailyData.reduce((sum, d) => sum + d.viewsGained, 0);
   const totalSubsGained = dailyData.reduce((sum, d) => sum + d.subsGained, 0);
   const avgDailyViews = dailyData.length > 0 ? Math.round(totalViewsGained / dailyData.length) : 0;
-
-  // Get chart data key based on view mode
   const chartDataKey = viewMode === 'views' ? 'viewsGained' : 'subsGained';
+
+  const filteredTags = userTags.filter(t => 
+    t.toLowerCase().includes(tagInput.toLowerCase()) && t.toLowerCase() !== tagInput.toLowerCase()
+  );
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Channel Analytics" size="large">
       <div className="space-y-6">
-        {/* Channel Header */}
-        <div className="flex items-center gap-4">
-          {channel.thumbnail_url ? (
-            <img src={channel.thumbnail_url} alt={channel.name} className="w-14 h-14 rounded-full object-cover" />
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center">
-              <span className="text-white text-xl font-bold">{channel.name.charAt(0)}</span>
+        {/* Channel Header with Tag */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {channel.thumbnail_url ? (
+              <img src={channel.thumbnail_url} alt={channel.name} className="w-14 h-14 rounded-full object-cover" />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center">
+                <span className="text-white text-xl font-bold">{channel.name.charAt(0)}</span>
+              </div>
+            )}
+            <div>
+              <h3 className="font-bold text-lg text-[#f8fafc]">{channel.name}</h3>
+              <div className="flex items-center gap-4 text-sm text-[#a1a1aa]">
+                <span className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  {channel.subscribers}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Video className="w-4 h-4" />
+                  {channel.video_count}
+                </span>
+              </div>
             </div>
-          )}
-          <div>
-            <h3 className="font-bold text-lg text-[#f8fafc]">{channel.name}</h3>
-            <div className="flex items-center gap-4 text-sm text-[#a1a1aa]">
-              <span className="flex items-center gap-1">
-                <Users className="w-4 h-4" />
-                {channel.subscribers}
-              </span>
-              <span className="flex items-center gap-1">
-                <Video className="w-4 h-4" />
-                {channel.video_count}
-              </span>
-            </div>
+          </div>
+
+          {/* Tag Section */}
+          <div className="relative">
+            {editingTag ? (
+              <div className="flex items-center gap-1 bg-[rgba(20,16,32,0.98)] rounded-lg border border-[rgba(168,85,247,0.3)] p-1">
+                <Tag className="w-4 h-4 text-[#71717a] ml-2" />
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTag();
+                    if (e.key === 'Escape') {
+                      setEditingTag(false);
+                      setTagInput(channel.tag || '');
+                    }
+                  }}
+                  placeholder="Add tag..."
+                  className="w-28 px-2 py-1 text-sm bg-transparent text-[#f8fafc] focus:outline-none placeholder:text-[#71717a]"
+                />
+                <button
+                  onClick={handleSaveTag}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[rgba(168,85,247,0.2)] text-[#86efac]"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingTag(false);
+                    setTagInput(channel.tag || '');
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[rgba(239,68,68,0.2)] text-[#fca5a5]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : channel.tag ? (
+              <button
+                onClick={() => setEditingTag(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(168,85,247,0.2)] border border-[rgba(168,85,247,0.3)] hover:bg-[rgba(168,85,247,0.3)] transition-colors group"
+              >
+                <Tag className="w-3.5 h-3.5 text-[#c084fc]" />
+                <span className="text-sm font-medium text-[#c084fc]">{channel.tag}</span>
+                <X 
+                  className="w-3.5 h-3.5 text-[#fca5a5] opacity-0 group-hover:opacity-100 transition-opacity" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveTag();
+                  }}
+                />
+              </button>
+            ) : (
+              <button
+                onClick={() => setEditingTag(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(113,113,122,0.1)] border border-dashed border-[rgba(113,113,122,0.3)] hover:border-[rgba(168,85,247,0.4)] hover:bg-[rgba(168,85,247,0.1)] transition-colors text-[#71717a] hover:text-[#c084fc]"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span className="text-sm">Add tag</span>
+              </button>
+            )}
+
+            {/* Tag Suggestions */}
+            {editingTag && showTagSuggestions && filteredTags.length > 0 && (
+              <div className="absolute top-full right-0 mt-1 py-1 bg-[rgba(20,16,32,0.98)] rounded-xl border border-[rgba(168,85,247,0.2)] shadow-xl z-10 min-w-[140px] max-h-32 overflow-y-auto">
+                {filteredTags.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onMouseDown={() => {
+                      setTagInput(t);
+                      setShowTagSuggestions(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] transition-colors"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Stats Summary - Shows GAINED in period */}
+        {/* Stats Summary */}
         <div className="grid grid-cols-3 gap-3">
           <div className="glass-panel rounded-xl p-4">
             <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1">
@@ -217,7 +331,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
           </div>
         </div>
 
-        {/* Chart - Bar chart for daily gains */}
+        {/* Chart */}
         <div className="glass-panel rounded-xl p-4 h-[280px]">
           {loading ? (
             <div className="h-full flex items-center justify-center">

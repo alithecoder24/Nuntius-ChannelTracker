@@ -90,6 +90,7 @@ export async function addChannel(profileId: string, channel: {
   views_28d: string;
   views_48h: string;
   language: string;
+  tag?: string | null;
 }) {
   const { data, error } = await supabase
     .from('channels')
@@ -103,6 +104,7 @@ export async function addChannel(profileId: string, channel: {
       views_28d: channel.views_28d,
       views_48h: channel.views_48h,
       language: channel.language,
+      tag: channel.tag || null,
     })
     .select()
     .single();

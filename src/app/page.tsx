@@ -147,7 +147,7 @@ export default function Home() {
 
   const handleAddChannel = async (channelData: {
     channel_id: string; name: string; thumbnail_url: string; subscribers: string;
-    video_count: string; views_28d: string; views_48h: string; language: string;
+    video_count: string; views_28d: string; views_48h: string; language: string; tag: string | null;
   }) => {
     if (!activeProfile) throw new Error('No profile selected');
     try {
@@ -162,8 +162,12 @@ export default function Home() {
         views28d: newChannel.views_28d || '0',
         views48h: newChannel.views_48h || '0',
         language: newChannel.language,
-        tag: null,
+        tag: channelData.tag,
       }, ...channels]);
+      // Add new tag to userTags if it doesn't exist
+      if (channelData.tag && !userTags.includes(channelData.tag)) {
+        setUserTags([...userTags, channelData.tag]);
+      }
     } catch (err) { console.error('Error adding channel:', err); throw err; }
   };
 
@@ -348,6 +352,7 @@ export default function Home() {
         onClose={() => setIsAddChannelModalOpen(false)} 
         profileName={profiles.find(p => p.id === activeProfile)?.name || 'this profile'}
         existingChannels={channels.map(ch => ({ channel_id: ch.channel_id, name: ch.name }))}
+        userTags={userTags}
         onAddChannel={handleAddChannel} 
       />
     </div>

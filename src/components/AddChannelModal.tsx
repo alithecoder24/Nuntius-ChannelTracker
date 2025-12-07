@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Modal from './Modal';
-import { Plus, Link, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Link, Loader2, CheckCircle, AlertCircle, Tag } from 'lucide-react';
 
 interface ExistingChannel {
   channel_id: string;
@@ -14,6 +14,7 @@ interface AddChannelModalProps {
   onClose: () => void;
   profileName: string;
   existingChannels: ExistingChannel[];
+  userTags: string[];
   onAddChannel: (channelData: {
     channel_id: string;
     name: string;
@@ -23,6 +24,7 @@ interface AddChannelModalProps {
     views_28d: string;
     views_48h: string;
     language: string;
+    tag: string | null;
   }) => Promise<void>;
 }
 
@@ -84,14 +86,17 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
   }
 }
 
-export default function AddChannelModal({ isOpen, onClose, profileName, existingChannels, onAddChannel }: AddChannelModalProps) {
+export default function AddChannelModal({ isOpen, onClose, profileName, existingChannels, userTags, onAddChannel }: AddChannelModalProps) {
   const [channelUrl, setChannelUrl] = useState('');
   const [language, setLanguage] = useState('English');
+  const [tag, setTag] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [channelData, setChannelData] = useState<YouTubeChannelData | null>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   const checkDuplicate = (channelId: string): string | null => {
     const existing = existingChannels.find(ch => ch.channel_id === channelId);
@@ -168,6 +173,7 @@ export default function AddChannelModal({ isOpen, onClose, profileName, existing
         views_28d: channelData.views_28d || '0',
         views_48h: channelData.views_48h || '0',
         language: language,
+        tag: tag.trim() || null,
       });
       
       handleClose();
@@ -181,11 +187,17 @@ export default function AddChannelModal({ isOpen, onClose, profileName, existing
   const handleClose = () => {
     setChannelUrl('');
     setLanguage('English');
+    setTag('');
     setError('');
     setDuplicateError(null);
     setChannelData(null);
+    setShowTagSuggestions(false);
     onClose();
   };
+
+  const filteredTags = userTags.filter(t => 
+    t.toLowerCase().includes(tag.toLowerCase()) && t.toLowerCase() !== tag.toLowerCase()
+  );
 
   const parsed = channelUrl ? parseYouTubeUrl(channelUrl) : null;
 
@@ -281,22 +293,63 @@ export default function AddChannelModal({ isOpen, onClose, profileName, existing
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">Language</label>
-          <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input-field">
-            <option value="English">English</option>
-            <option value="Spanish">Spanish</option>
-            <option value="German">German</option>
-            <option value="French">French</option>
-            <option value="Portuguese">Portuguese</option>
-            <option value="Japanese">Japanese</option>
-            <option value="Korean">Korean</option>
-            <option value="Chinese">Chinese</option>
-            <option value="Hindi">Hindi</option>
-            <option value="Arabic">Arabic</option>
-            <option value="Russian">Russian</option>
-            <option value="Other">Other</option>
-          </select>
+        {/* Language & Tag Row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">Language</label>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input-field">
+              <option value="English">English</option>
+              <option value="Spanish">Spanish</option>
+              <option value="German">German</option>
+              <option value="French">French</option>
+              <option value="Portuguese">Portuguese</option>
+              <option value="Japanese">Japanese</option>
+              <option value="Korean">Korean</option>
+              <option value="Chinese">Chinese</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Arabic">Arabic</option>
+              <option value="Russian">Russian</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          
+          <div className="relative">
+            <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">
+              Tag <span className="text-[#71717a] font-normal">(optional)</span>
+            </label>
+            <div className="relative">
+              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717a]" />
+              <input
+                ref={tagInputRef}
+                type="text"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                onFocus={() => setShowTagSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                placeholder="e.g. competitor"
+                className="input-field pl-10"
+              />
+            </div>
+            
+            {/* Tag Suggestions */}
+            {showTagSuggestions && filteredTags.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 py-1 bg-[rgba(20,16,32,0.98)] rounded-xl border border-[rgba(168,85,247,0.2)] shadow-xl z-10 max-h-32 overflow-y-auto">
+                {filteredTags.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setTag(t);
+                      setShowTagSuggestions(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] transition-colors"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-3 pt-2">
