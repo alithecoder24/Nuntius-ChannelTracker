@@ -10,6 +10,7 @@ interface AddChannelModalProps {
   onAddChannel: (channelData: {
     channel_id: string;
     name: string;
+    thumbnail_url: string;
     subscribers: string;
     subs_growth_28d: string;
     subs_growth_48h: string;
@@ -35,12 +36,10 @@ interface YouTubeChannelData {
 function parseYouTubeUrl(url: string): { type: string; id: string } | null {
   let cleanUrl = url.trim();
   
-  // If it's just a handle like @MrBeast
   if (cleanUrl.startsWith('@')) {
     return { type: 'handle', id: cleanUrl };
   }
   
-  // Add https if missing
   if (!cleanUrl.startsWith('http')) {
     cleanUrl = 'https://' + cleanUrl;
   }
@@ -56,31 +55,26 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
     const pathname = urlObj.pathname;
     const cleanPath = pathname.replace(/\/(videos|shorts|streams|playlists|community|about|featured|live)?\/?$/, '');
 
-    // Format: youtube.com/channel/UC...
     const channelMatch = cleanPath.match(/\/channel\/([a-zA-Z0-9_-]+)/);
     if (channelMatch) {
       return { type: 'channel', id: channelMatch[1] };
     }
 
-    // Format: youtube.com/@handle
     const handleMatch = cleanPath.match(/\/@([a-zA-Z0-9_.-]+)/);
     if (handleMatch) {
       return { type: 'handle', id: '@' + handleMatch[1] };
     }
 
-    // Format: youtube.com/c/customname
     const customMatch = cleanPath.match(/\/c\/([a-zA-Z0-9_.-]+)/);
     if (customMatch) {
       return { type: 'custom', id: customMatch[1] };
     }
 
-    // Format: youtube.com/user/username
     const userMatch = cleanPath.match(/\/user\/([a-zA-Z0-9_.-]+)/);
     if (userMatch) {
       return { type: 'user', id: userMatch[1] };
     }
 
-    // Direct handle without @ (youtube.com/MrBeast)
     const directMatch = cleanPath.match(/^\/([a-zA-Z0-9_.-]+)$/);
     if (directMatch && !['watch', 'feed', 'gaming', 'music', 'premium', 'results'].includes(directMatch[1])) {
       return { type: 'handle', id: '@' + directMatch[1] };
@@ -100,7 +94,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
   const [error, setError] = useState('');
   const [channelData, setChannelData] = useState<YouTubeChannelData | null>(null);
 
-  // Fetch channel data from YouTube API
   const fetchChannelData = async (identifier: string) => {
     setFetching(true);
     setError('');
@@ -122,7 +115,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
     }
   };
 
-  // When URL changes, try to fetch channel data
   const handleUrlChange = (value: string) => {
     setChannelUrl(value);
     setChannelData(null);
@@ -130,7 +122,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
 
     const parsed = parseYouTubeUrl(value);
     if (parsed) {
-      // Debounce the fetch
       const timeoutId = setTimeout(() => {
         fetchChannelData(parsed.id);
       }, 500);
@@ -152,6 +143,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
       await onAddChannel({
         channel_id: channelData.channel_id,
         name: channelData.name,
+        thumbnail_url: channelData.thumbnail_url || '',
         subscribers: channelData.subscriber_count_formatted,
         subs_growth_28d: '0',
         subs_growth_48h: '0',
@@ -199,7 +191,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
             {channelData && !fetching && (
               <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />
             )}
-            {error && !fetching && (
+            {error && !fetching && parsed && (
               <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />
             )}
           </div>
@@ -212,12 +204,16 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         {channelData && (
           <div className="p-4 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.2)]">
             <div className="flex items-center gap-4">
-              {channelData.thumbnail_url && (
+              {channelData.thumbnail_url ? (
                 <img 
                   src={channelData.thumbnail_url} 
                   alt={channelData.name}
                   className="w-16 h-16 rounded-full object-cover"
                 />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">{channelData.name.charAt(0)}</span>
+                </div>
               )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-[#f8fafc] truncate">{channelData.name}</h4>
@@ -237,14 +233,13 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
           </div>
         )}
 
-        {/* Error for API issues */}
         {error && !channelData && channelUrl && parsed && (
           <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
             {error}
+            <p className="text-xs mt-1 opacity-75">Make sure YOUTUBE_API_KEY is set in Vercel</p>
           </div>
         )}
 
-        {/* Invalid URL error */}
         {channelUrl && !parsed && (
           <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
             Invalid YouTube URL format

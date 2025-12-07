@@ -5,7 +5,7 @@ import { Youtube, Trash2 } from 'lucide-react';
 interface Channel {
   id: string;
   name: string;
-  avatar: string;
+  thumbnail_url: string;
   subscribers: string;
   subsGrowth28d: string;
   subsGrowth48h: string;
@@ -27,18 +27,24 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
         >
           {/* Channel Header */}
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center flex-shrink-0 shadow-glow">
-              <span className="text-white font-bold">
-                {channel.name.charAt(0)}
-              </span>
-            </div>
+            {channel.thumbnail_url ? (
+              <img 
+                src={channel.thumbnail_url} 
+                alt={channel.name}
+                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center flex-shrink-0 shadow-glow">
+                <span className="text-white font-bold">
+                  {channel.name.charAt(0)}
+                </span>
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-[#f8fafc] truncate">{channel.name}</h3>
               <div className="flex items-center gap-2 mt-1 text-sm flex-wrap">
-                <span className="text-[#c084fc] font-bold">+{channel.subscribers}</span>
-                <span className="text-[#71717a]">(28d)</span>
-                <span className="text-[#86efac] font-semibold">+{channel.subsGrowth48h}</span>
-                <span className="text-[#71717a]">(48h)</span>
+                <span className="text-[#c084fc] font-bold">{channel.subscribers}</span>
+                <span className="text-[#71717a]">subs</span>
               </div>
             </div>
           </div>
@@ -50,7 +56,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
             </span>
             <div className="flex-1 flex items-center gap-2">
               <a
-                href={`https://youtube.com/${channel.id || channel.name}`}
+                href={`https://youtube.com/channel/${channel.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 py-2 bg-[rgba(168,85,247,0.1)] hover:bg-[rgba(168,85,247,0.2)] rounded-lg transition-colors border border-[rgba(168,85,247,0.2)]"

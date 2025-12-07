@@ -21,7 +21,7 @@ interface Profile {
 interface Channel {
   id: string;
   name: string;
-  avatar: string;
+  thumbnail_url: string;
   subscribers: string;
   subsGrowth28d: string;
   subsGrowth48h: string;
@@ -63,7 +63,6 @@ export default function Home() {
     searchQuery: '',
   });
 
-  // Listen for auth changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -77,7 +76,6 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load profiles when user logs in
   useEffect(() => {
     if (user) {
       loadProfiles();
@@ -88,7 +86,6 @@ export default function Home() {
     }
   }, [user]);
 
-  // Load channels when active profile changes
   useEffect(() => {
     if (activeProfile) {
       loadChannels(activeProfile);
@@ -116,7 +113,7 @@ export default function Home() {
       setChannels(data.map(ch => ({
         id: ch.id,
         name: ch.name,
-        avatar: '',
+        thumbnail_url: ch.thumbnail_url || '',
         subscribers: ch.subscribers,
         subsGrowth28d: ch.subs_growth_28d,
         subsGrowth48h: ch.subs_growth_48h,
@@ -141,6 +138,7 @@ export default function Home() {
   const handleAddChannel = async (channelData: {
     channel_id: string;
     name: string;
+    thumbnail_url: string;
     subscribers: string;
     subs_growth_28d: string;
     subs_growth_48h: string;
@@ -155,7 +153,7 @@ export default function Home() {
       setChannels([{
         id: newChannel.id,
         name: newChannel.name,
-        avatar: '',
+        thumbnail_url: newChannel.thumbnail_url || '',
         subscribers: newChannel.subscribers,
         subsGrowth28d: newChannel.subs_growth_28d,
         subsGrowth48h: newChannel.subs_growth_48h,
@@ -203,16 +201,13 @@ export default function Home() {
     );
   }
 
-  // Landing page for non-authenticated users
   if (!user) {
     return (
       <div className="min-h-screen relative z-[1] flex flex-col">
-        {/* Decorative orbs */}
         <div className="orb orb-1" />
         <div className="orb orb-2" />
         <div className="orb orb-3" />
 
-        {/* Header */}
         <header className="relative z-10 p-6 flex items-center justify-between">
           <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
             Nuntius Niche Tracker
@@ -234,10 +229,8 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Hero Section */}
         <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
           <div className="text-center max-w-3xl mx-auto">
-            {/* Badge */}
             <div className="flex justify-center mb-6">
               <span className="badge">
                 <span className="text-[#e879f9]">✦</span>
@@ -245,7 +238,6 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Main Heading */}
             <h1 className="text-5xl md:text-6xl font-extrabold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
                 Track Your YouTube Channels
@@ -254,12 +246,10 @@ export default function Home() {
               <span className="text-[#f8fafc]">All In One Place</span>
             </h1>
 
-            {/* Subtitle */}
             <p className="text-xl text-[#a1a1aa] mb-10 max-w-xl mx-auto leading-relaxed">
               Organize channels by niche, monitor growth trends, and discover viral content before it blows up.
             </p>
 
-            {/* CTA Button */}
             <button
               onClick={openSignup}
               className="btn btn-primary text-lg px-8 py-4 inline-flex items-center gap-3"
@@ -267,7 +257,6 @@ export default function Home() {
               Get Started — It's Free
             </button>
 
-            {/* Features Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20">
               <div className="glass-card p-6 text-center card-hover">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#a855f7]/20 to-[#e879f9]/20 flex items-center justify-center mx-auto mb-4 border border-[rgba(168,85,247,0.2)]">
@@ -296,7 +285,6 @@ export default function Home() {
           </div>
         </main>
 
-        {/* Auth Modal */}
         <AuthModal
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
@@ -306,10 +294,8 @@ export default function Home() {
     );
   }
 
-  // Authenticated user view
   return (
     <div className="min-h-screen relative z-[1]">
-      {/* Decorative orbs */}
       <div className="orb orb-1" />
       <div className="orb orb-2" />
       <div className="orb orb-3" />
@@ -321,10 +307,8 @@ export default function Home() {
         onNewProfile={handleNewProfile}
       />
       
-      {/* Main Content */}
       <main className="ml-[220px] p-6 relative z-[1]">
         <div className="max-w-[1600px] mx-auto space-y-6">
-          {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex-1 flex justify-center">
               <span className="badge">
@@ -333,7 +317,6 @@ export default function Home() {
               </span>
             </div>
             
-            {/* User Menu */}
             <div className="absolute right-6 top-6">
               <UserMenu user={user} />
             </div>
@@ -348,7 +331,6 @@ export default function Home() {
           
           {profiles.length > 0 ? (
             <>
-              {/* Channels Header with Add Button */}
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
                   Channels
@@ -402,7 +384,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Modals */}
       <CreateProfileModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}

@@ -18,6 +18,7 @@ export interface Channel {
   profile_id: string;
   channel_id: string;
   name: string;
+  thumbnail_url: string;
   subscribers: string;
   subs_growth_28d: string;
   subs_growth_48h: string;
@@ -69,10 +70,27 @@ export async function getChannels(profileId: string) {
   return data as Channel[];
 }
 
-export async function addChannel(profileId: string, channel: Omit<Channel, 'id' | 'profile_id' | 'created_at'>) {
+export async function addChannel(profileId: string, channel: {
+  channel_id: string;
+  name: string;
+  thumbnail_url?: string;
+  subscribers: string;
+  subs_growth_28d: string;
+  subs_growth_48h: string;
+  language: string;
+}) {
   const { data, error } = await supabase
     .from('channels')
-    .insert({ profile_id: profileId, ...channel })
+    .insert({ 
+      profile_id: profileId,
+      channel_id: channel.channel_id,
+      name: channel.name,
+      thumbnail_url: channel.thumbnail_url || '',
+      subscribers: channel.subscribers,
+      subs_growth_28d: channel.subs_growth_28d,
+      subs_growth_48h: channel.subs_growth_48h,
+      language: channel.language,
+    })
     .select()
     .single();
   
@@ -88,4 +106,3 @@ export async function removeChannel(channelId: string) {
   
   if (error) throw error;
 }
-
