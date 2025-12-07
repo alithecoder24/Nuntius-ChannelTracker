@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get unique channel IDs
-    const uniqueChannelIds = [...new Set(channels?.map(c => c.channel_id) || [])];
+    const uniqueChannelIds = Array.from(new Set(channels?.map(c => c.channel_id) || []));
     
     console.log(`[CRON] Starting daily snapshot for ${uniqueChannelIds.length} channels`);
 
