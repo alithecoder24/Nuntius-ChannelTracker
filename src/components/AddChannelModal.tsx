@@ -29,6 +29,8 @@ interface YouTubeChannelData {
   subscriber_count_formatted: string;
   video_count_formatted: string;
   view_count_formatted: string;
+  growth_48h: string;
+  growth_28d: string;
   country: string | null;
   from_cache: boolean;
 }
@@ -146,8 +148,8 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         thumbnail_url: channelData.thumbnail_url || '',
         subscribers: channelData.subscriber_count_formatted,
         video_count: channelData.video_count_formatted,
-        subs_growth_28d: '0',
-        subs_growth_48h: '0',
+        subs_growth_28d: channelData.growth_28d || '0',
+        subs_growth_48h: channelData.growth_48h || '0',
         language: language,
       });
       
@@ -222,6 +224,12 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
                   <span><strong className="text-[#c084fc]">{channelData.subscriber_count_formatted}</strong> subscribers</span>
                   <span><strong>{channelData.video_count_formatted}</strong> videos</span>
                 </div>
+                {(channelData.growth_28d !== '0' || channelData.growth_48h !== '0') && (
+                  <div className="flex items-center gap-3 mt-1 text-xs">
+                    <span className="text-[#86efac]">+{channelData.growth_28d} (28d)</span>
+                    <span className="text-[#86efac]">+{channelData.growth_48h} (48h)</span>
+                  </div>
+                )}
               </div>
             </div>
             {channelData.from_cache && (
