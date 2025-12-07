@@ -10,7 +10,7 @@ import ChannelsGrid from '@/components/ChannelsGrid';
 import CreateProfileModal from '@/components/CreateProfileModal';
 import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
-import { LogIn, Loader2, Youtube, TrendingUp, BarChart3, FolderOpen } from 'lucide-react';
+import { Loader2, FolderOpen, TrendingUp, BarChart3 } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -50,6 +50,7 @@ export default function Home() {
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [filters, setFilters] = useState({
     timeWindow: '48h',
     videoAmount: '10',
@@ -146,10 +147,21 @@ export default function Home() {
 
   const handleNewProfile = () => {
     if (!user) {
+      setAuthMode('signup');
       setIsAuthModalOpen(true);
     } else {
       setIsCreateModalOpen(true);
     }
+  };
+
+  const openLogin = () => {
+    setAuthMode('login');
+    setIsAuthModalOpen(true);
+  };
+
+  const openSignup = () => {
+    setAuthMode('signup');
+    setIsAuthModalOpen(true);
   };
 
   if (loading) {
@@ -171,23 +183,24 @@ export default function Home() {
 
         {/* Header */}
         <header className="relative z-10 p-6 flex items-center justify-between">
+          <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
+            Nuntius Niche Tracker
+          </span>
+          
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#e879f9] via-[#c084fc] to-[#a855f7] flex items-center justify-center shadow-glow">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            </div>
-            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
-              Nuntius
-            </span>
+            <button
+              onClick={openLogin}
+              className="px-5 py-2.5 text-[#f8fafc] font-medium hover:text-[#c084fc] transition-colors"
+            >
+              Login
+            </button>
+            <button
+              onClick={openSignup}
+              className="btn btn-primary px-5 py-2.5"
+            >
+              Get Started
+            </button>
           </div>
-          <button
-            onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 btn btn-primary"
-          >
-            <LogIn className="w-4 h-4" />
-            Sign In
-          </button>
         </header>
 
         {/* Hero Section */}
@@ -204,10 +217,10 @@ export default function Home() {
             {/* Main Heading */}
             <h1 className="text-5xl md:text-6xl font-extrabold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
-                Track YouTube Channels
+                Track Your YouTube Channels
               </span>
               <br />
-              <span className="text-[#f8fafc]">Like a Pro</span>
+              <span className="text-[#f8fafc]">All In One Place</span>
             </h1>
 
             {/* Subtitle */}
@@ -217,10 +230,9 @@ export default function Home() {
 
             {/* CTA Button */}
             <button
-              onClick={() => setIsAuthModalOpen(true)}
+              onClick={openSignup}
               className="btn btn-primary text-lg px-8 py-4 inline-flex items-center gap-3"
             >
-              <LogIn className="w-5 h-5" />
               Get Started — It's Free
             </button>
 
@@ -257,6 +269,7 @@ export default function Home() {
         <AuthModal
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
+          initialMode={authMode}
         />
       </div>
     );
@@ -347,6 +360,7 @@ export default function Home() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        initialMode={authMode}
       />
     </div>
   );
