@@ -5,10 +5,24 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ============================================
+// TYPES
+// ============================================
+
+export interface TeamMember {
+  id: string;
+  user_id: string | null;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  invited_by: string | null;
+  created_at: string;
+}
+
 export interface Profile {
   id: string;
-  user_id: string;
+  created_by: string;
   name: string;
+  visibility: 'private' | 'team';
   created_at: string;
 }
 
@@ -27,21 +41,89 @@ export interface Channel {
   created_at: string;
 }
 
+// ============================================
+// TEAM MEMBER FUNCTIONS
+// ============================================
+
+export async function checkTeamMembership(userId: string): Promise<TeamMember | null> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  
+  if (error) return null;
+  return data as TeamMember;
+}
+
+export async function getTeamMembers(): Promise<TeamMember[]> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*')
+    .order('created_at', { ascending: true });
+  
+  if (error) throw error;
+  return data as TeamMember[];
+}
+
+export async function inviteTeamMember(email: string, role: 'admin' | 'member', invitedBy: string): Promise<TeamMember> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .insert({ email: email.toLowerCase(), role, invited_by: invitedBy })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as TeamMember;
+}
+
+export async function removeTeamMember(memberId: string): Promise<void> {
+  const { error } = await supabase
+    .from('team_members')
+    .delete()
+    .eq('id', memberId);
+  
+  if (error) throw error;
+}
+
+export async function updateTeamMemberRole(memberId: string, role: 'admin' | 'member'): Promise<void> {
+  const { error } = await supabase
+    .from('team_members')
+    .update({ role })
+    .eq('id', memberId);
+  
+  if (error) throw error;
+}
+
+export async function linkUserToTeamMember(userId: string, email: string): Promise<void> {
+  // When a user signs up, link them to their team_members record if it exists
+  const { error } = await supabase
+    .from('team_members')
+    .update({ user_id: userId })
+    .eq('email', email.toLowerCase());
+  
+  if (error) throw error;
+}
+
+// ============================================
+// PROFILE FUNCTIONS
+// ============================================
+
 export async function getProfiles(userId: string) {
+  // RLS handles visibility - just fetch all accessible profiles
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('user_id', userId)
     .order('created_at', { ascending: true });
   
   if (error) throw error;
   return data as Profile[];
 }
 
-export async function createProfile(userId: string, name: string) {
+export async function createProfile(userId: string, name: string, visibility: 'private' | 'team' = 'team') {
   const { data, error } = await supabase
     .from('profiles')
-    .insert({ user_id: userId, name })
+    .insert({ created_by: userId, name, visibility })
     .select()
     .single();
   
@@ -62,6 +144,18 @@ export async function renameProfile(profileId: string, newName: string) {
   const { data, error } = await supabase
     .from('profiles')
     .update({ name: newName })
+    .eq('id', profileId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as Profile;
+}
+
+export async function updateProfileVisibility(profileId: string, visibility: 'private' | 'team') {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ visibility })
     .eq('id', profileId)
     .select()
     .single();
@@ -131,23 +225,11 @@ export async function updateChannelTag(channelId: string, tag: string | null) {
   if (error) throw error;
 }
 
-export async function getTags(userId: string): Promise<string[]> {
-  // Get all unique tags from user's channels across all profiles
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('user_id', userId);
-  
-  if (profileError) throw profileError;
-  
-  if (!profiles || profiles.length === 0) return [];
-  
-  const profileIds = profiles.map(p => p.id);
-  
+export async function getTags(): Promise<string[]> {
+  // Get all unique tags from accessible channels (RLS handles permissions)
   const { data: channels, error: channelError } = await supabase
     .from('channels')
     .select('tag')
-    .in('profile_id', profileIds)
     .not('tag', 'is', null);
   
   if (channelError) throw channelError;
@@ -158,12 +240,11 @@ export async function getTags(userId: string): Promise<string[]> {
   return uniqueTags;
 }
 
-export async function deleteTagFromAllChannels(userId: string, tagToDelete: string): Promise<void> {
-  // Get all user's profile IDs
+export async function deleteTagFromAllChannels(tagToDelete: string): Promise<void> {
+  // Get all accessible profiles (RLS handles permissions)
   const { data: profiles, error: profileError } = await supabase
     .from('profiles')
-    .select('id')
-    .eq('user_id', userId);
+    .select('id');
   
   if (profileError) throw profileError;
   if (!profiles || profiles.length === 0) return;

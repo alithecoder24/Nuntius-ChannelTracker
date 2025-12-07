@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Lock, Users } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 
 interface Profile {
   id: string;
   name: string;
+  visibility?: 'private' | 'team';
+  createdBy?: string;
 }
 
 interface SidebarProps {
@@ -118,7 +120,14 @@ export default function Sidebar({
                           : 'text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
                       }`}
                     >
-                      <span className="truncate block">{profile.name}</span>
+                      <span className="flex items-center gap-2">
+                        {profile.visibility === 'private' ? (
+                          <Lock className="w-3 h-3 flex-shrink-0 opacity-60" />
+                        ) : (
+                          <Users className="w-3 h-3 flex-shrink-0 opacity-60" />
+                        )}
+                        <span className="truncate">{profile.name}</span>
+                      </span>
                     </button>
                     
                     {/* Settings button - always visible on hover */}

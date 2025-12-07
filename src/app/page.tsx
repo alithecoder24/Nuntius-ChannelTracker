@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag, deleteTagFromAllChannels } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag, deleteTagFromAllChannels, checkTeamMembership, getTeamMembers, inviteTeamMember, removeTeamMember, linkUserToTeamMember, type TeamMember } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -12,9 +12,10 @@ import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
 import TagManagementModal from '@/components/TagManagementModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag } from 'lucide-react';
+import TeamManagementModal from '@/components/TeamManagementModal';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag, Users, ShieldX } from 'lucide-react';
 
-interface Profile { id: string; name: string; }
+interface Profile { id: string; name: string; visibility: 'private' | 'team'; createdBy: string; }
 
 interface Channel {
   id: string;
@@ -47,6 +48,8 @@ type SortOption = 'name' | 'subscribers' | 'views28d' | 'newest';
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
@@ -54,6 +57,7 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
   const [isTagManagementOpen, setIsTagManagementOpen] = useState(false);
+  const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [userTags, setUserTags] = useState<string[]>([]);
@@ -66,19 +70,61 @@ export default function Home() {
       setUser(session?.user ?? null);
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
+      // When user logs in, try to link their account to team_members
+      if (session?.user?.email) {
+        try {
+          await linkUserToTeamMember(session.user.id, session.user.email);
+        } catch (err) {
+          // Ignore - they might not be in team_members yet
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (user) {
-      loadProfiles();
-      loadTags();
+      checkAccess();
+    } else { 
+      setTeamMember(null);
+      setTeamMembers([]);
+      setProfiles([]); 
+      setChannels([]); 
+      setActiveProfile(null); 
+      setUserTags([]); 
     }
-    else { setProfiles([]); setChannels([]); setActiveProfile(null); setUserTags([]); }
   }, [user]);
+
+  const checkAccess = async () => {
+    if (!user) return;
+    try {
+      // Link user to team member record if exists
+      if (user.email) {
+        await linkUserToTeamMember(user.id, user.email);
+      }
+      const member = await checkTeamMembership(user.id);
+      setTeamMember(member);
+      if (member) {
+        loadProfiles();
+        loadTags();
+        if (member.role === 'owner' || member.role === 'admin') {
+          loadTeamMembers();
+        }
+      }
+    } catch (err) { 
+      console.error('Error checking access:', err);
+      setTeamMember(null);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      const members = await getTeamMembers();
+      setTeamMembers(members);
+    } catch (err) { console.error('Error loading team members:', err); }
+  };
 
   useEffect(() => {
     if (activeProfile) loadChannels(activeProfile);
@@ -89,7 +135,12 @@ export default function Home() {
     if (!user) return;
     try {
       const data = await getProfiles(user.id);
-      setProfiles(data.map(p => ({ id: p.id, name: p.name })));
+      setProfiles(data.map(p => ({ 
+        id: p.id, 
+        name: p.name, 
+        visibility: p.visibility || 'team',
+        createdBy: p.created_by 
+      })));
       if (data.length > 0 && !activeProfile) setActiveProfile(data[0].id);
     } catch (err) { console.error('Error loading profiles:', err); }
   };
@@ -113,18 +164,22 @@ export default function Home() {
   };
 
   const loadTags = async () => {
-    if (!user) return;
     try {
-      const tags = await getTags(user.id);
+      const tags = await getTags();
       setUserTags(tags);
     } catch (err) { console.error('Error loading tags:', err); }
   };
 
-  const handleCreateProfile = async (name: string) => {
+  const handleCreateProfile = async (name: string, visibility: 'private' | 'team' = 'team') => {
     if (!user) return;
     try {
-      const newProfile = await createProfile(user.id, name);
-      setProfiles([...profiles, { id: newProfile.id, name: newProfile.name }]);
+      const newProfile = await createProfile(user.id, name, visibility);
+      setProfiles([...profiles, { 
+        id: newProfile.id, 
+        name: newProfile.name, 
+        visibility: newProfile.visibility,
+        createdBy: newProfile.created_by 
+      }]);
       setActiveProfile(newProfile.id);
     } catch (err) { console.error('Error creating profile:', err); }
   };
@@ -190,12 +245,29 @@ export default function Home() {
   };
 
   const handleDeleteTag = async (tagToDelete: string) => {
-    if (!user) return;
-    await deleteTagFromAllChannels(user.id, tagToDelete);
+    await deleteTagFromAllChannels(tagToDelete);
     // Remove tag from all channels in state
     setChannels(channels.map(ch => ch.tag === tagToDelete ? { ...ch, tag: null } : ch));
     // Remove from userTags
     setUserTags(userTags.filter(t => t !== tagToDelete));
+  };
+
+  const handleInviteMember = async (email: string, role: 'admin' | 'member') => {
+    if (!user) return;
+    try {
+      const newMember = await inviteTeamMember(email, role, user.id);
+      setTeamMembers([...teamMembers, newMember]);
+    } catch (err) { 
+      console.error('Error inviting member:', err);
+      throw err;
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    try {
+      await removeTeamMember(memberId);
+      setTeamMembers(teamMembers.filter(m => m.id !== memberId));
+    } catch (err) { console.error('Error removing member:', err); }
   };
 
   const handleNewProfile = () => {
@@ -222,6 +294,34 @@ export default function Home() {
   });
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
+
+  // User is logged in but not a team member
+  if (user && !teamMember) {
+    return (
+      <div className="min-h-screen relative z-[1] flex flex-col">
+        <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
+        <header className="relative z-10 p-6 flex items-center justify-between">
+          <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Nuntius Niche Tracker</span>
+          <UserMenu user={user} />
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+          <div className="text-center max-w-lg mx-auto">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#e879f9]/20 flex items-center justify-center mx-auto mb-6 border border-[rgba(168,85,247,0.2)]">
+              <ShieldX className="w-10 h-10 text-[#c084fc]" />
+            </div>
+            <h1 className="text-3xl font-bold text-[#f8fafc] mb-4">Access Restricted</h1>
+            <p className="text-[#a1a1aa] mb-2">This tool is for team members only.</p>
+            <p className="text-[#71717a] text-sm mb-8">
+              Logged in as: <span className="text-[#c084fc]">{user.email}</span>
+            </p>
+            <p className="text-[#52525b] text-sm">
+              If you should have access, ask an admin to invite you.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -274,7 +374,17 @@ export default function Home() {
       {/* Top Header - Centered Badge */}
       <header className="relative z-10 h-16 flex items-center justify-center">
         <span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span>
-        <div className="absolute right-6 top-1/2 -translate-y-1/2">
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
+          {/* Team Management - Only for owner/admin */}
+          {(teamMember?.role === 'owner' || teamMember?.role === 'admin') && (
+            <button
+              onClick={() => setIsTeamManagementOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-medium text-[#a1a1aa] hover:text-[#c084fc] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.3)] transition-all"
+            >
+              <Users className="w-4 h-4" />
+              Team
+            </button>
+          )}
           <UserMenu user={user} />
         </div>
       </header>
@@ -378,6 +488,14 @@ export default function Home() {
         onClose={() => setIsTagManagementOpen(false)}
         tags={userTags}
         onDeleteTag={handleDeleteTag}
+      />
+      <TeamManagementModal
+        isOpen={isTeamManagementOpen}
+        onClose={() => setIsTeamManagementOpen(false)}
+        members={teamMembers}
+        currentUserRole={teamMember?.role || 'member'}
+        onInvite={handleInviteMember}
+        onRemove={handleRemoveMember}
       />
     </div>
   );
