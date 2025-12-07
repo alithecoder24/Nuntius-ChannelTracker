@@ -214,57 +214,60 @@ export default function Home() {
     <div className="min-h-screen relative z-[1]">
       <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
       
-      {/* Top Header */}
-      <header className="relative z-10 h-[80px] px-6 flex items-center">
-        <div className="w-[224px]" /> {/* Spacer for sidebar */}
-        <div className="flex-1 flex justify-center">
-          <span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span>
+      {/* Top Header - Centered Badge */}
+      <header className="relative z-10 h-16 flex items-center justify-center">
+        <span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span>
+        <div className="absolute right-6 top-1/2 -translate-y-1/2">
+          <UserMenu user={user} />
         </div>
-        <UserMenu user={user} />
       </header>
 
-      {/* Sidebar */}
-      <Sidebar 
-        profiles={profiles} 
-        activeProfile={activeProfile} 
-        onProfileSelect={setActiveProfile} 
-        onNewProfile={handleNewProfile}
-        onRenameProfile={handleRenameProfile}
-        onDeleteProfile={handleDeleteProfile}
-      />
+      {/* Main Layout - Sidebar + Content side by side */}
+      <div className="flex gap-4 px-4 pb-6">
+        {/* Sidebar */}
+        <Sidebar 
+          profiles={profiles} 
+          activeProfile={activeProfile} 
+          onProfileSelect={setActiveProfile} 
+          onNewProfile={handleNewProfile}
+          onRenameProfile={handleRenameProfile}
+          onDeleteProfile={handleDeleteProfile}
+        />
 
-      {/* Main Content */}
-      <main className="ml-[224px] mr-6 pb-6 relative z-[1]">
-        <div className="max-w-[1600px] mx-auto space-y-6">
-          <FilterSection filters={filters} onFilterChange={setFilters} />
-          <VideoResults videos={mockVideos} />
-          {profiles.length > 0 ? (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
-                <button onClick={() => setIsAddChannelModalOpen(true)} className="btn btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Channel</button>
-              </div>
-              {channels.length > 0 ? (
-                <ChannelsGrid channels={channels} onRemoveChannel={handleRemoveChannel} />
-              ) : (
-                <div className="glass-card p-12 text-center fade-in">
-                  <div className="text-5xl mb-4 opacity-30">📺</div>
-                  <h3 className="text-xl font-semibold text-[#f8fafc] mb-2">No channels yet</h3>
-                  <p className="text-[#71717a] mb-6">Start tracking YouTube channels by adding them to this profile</p>
-                  <button onClick={() => setIsAddChannelModalOpen(true)} className="btn btn-primary inline-flex items-center gap-2"><Plus className="w-4 h-4" />Add Your First Channel</button>
+        {/* Main Content */}
+        <main className="flex-1 relative z-[1]">
+          <div className="max-w-[1600px] space-y-6">
+            <FilterSection filters={filters} onFilterChange={setFilters} />
+            <VideoResults videos={mockVideos} />
+            {profiles.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
+                  <button onClick={() => setIsAddChannelModalOpen(true)} className="btn btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Channel</button>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="glass-card p-12 text-center fade-in">
-              <div className="text-5xl mb-4 opacity-30">📁</div>
-              <h3 className="text-xl font-semibold text-[#f8fafc] mb-2">No profiles yet</h3>
-              <p className="text-[#71717a] mb-6">Create your first profile to start organizing channels by niche</p>
-              <button onClick={() => setIsCreateModalOpen(true)} className="btn btn-primary">Create First Profile</button>
-            </div>
-          )}
-        </div>
-      </main>
+                {channels.length > 0 ? (
+                  <ChannelsGrid channels={channels} onRemoveChannel={handleRemoveChannel} />
+                ) : (
+                  <div className="glass-card p-12 text-center fade-in">
+                    <div className="text-5xl mb-4 opacity-30">📺</div>
+                    <h3 className="text-xl font-semibold text-[#f8fafc] mb-2">No channels yet</h3>
+                    <p className="text-[#71717a] mb-6">Start tracking YouTube channels by adding them to this profile</p>
+                    <button onClick={() => setIsAddChannelModalOpen(true)} className="btn btn-primary inline-flex items-center gap-2"><Plus className="w-4 h-4" />Add Your First Channel</button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="glass-card p-12 text-center fade-in">
+                <div className="text-5xl mb-4 opacity-30">📁</div>
+                <h3 className="text-xl font-semibold text-[#f8fafc] mb-2">No profiles yet</h3>
+                <p className="text-[#71717a] mb-6">Create your first profile to start organizing channels by niche</p>
+                <button onClick={() => setIsCreateModalOpen(true)} className="btn btn-primary">Create First Profile</button>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+      
       <CreateProfileModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onCreateProfile={handleCreateProfile} />
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authMode} />
       <AddChannelModal isOpen={isAddChannelModalOpen} onClose={() => setIsAddChannelModalOpen(false)} onAddChannel={handleAddChannel} />
