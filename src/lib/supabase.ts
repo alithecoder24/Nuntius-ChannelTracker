@@ -5,7 +5,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Database types
 export interface Profile {
   id: string;
   user_id: string;
@@ -21,13 +20,12 @@ export interface Channel {
   thumbnail_url: string;
   subscribers: string;
   video_count: string;
-  subs_growth_28d: string;
-  subs_growth_48h: string;
+  views_28d: string;
+  views_48h: string;
   language: string;
   created_at: string;
 }
 
-// Profile functions
 export async function getProfiles(userId: string) {
   const { data, error } = await supabase
     .from('profiles')
@@ -59,7 +57,6 @@ export async function deleteProfile(profileId: string) {
   if (error) throw error;
 }
 
-// Channel functions
 export async function getChannels(profileId: string) {
   const { data, error } = await supabase
     .from('channels')
@@ -77,8 +74,8 @@ export async function addChannel(profileId: string, channel: {
   thumbnail_url?: string;
   subscribers: string;
   video_count?: string;
-  subs_growth_28d: string;
-  subs_growth_48h: string;
+  views_28d: string;
+  views_48h: string;
   language: string;
 }) {
   const { data, error } = await supabase
@@ -90,8 +87,8 @@ export async function addChannel(profileId: string, channel: {
       thumbnail_url: channel.thumbnail_url || '',
       subscribers: channel.subscribers,
       video_count: channel.video_count || '0',
-      subs_growth_28d: channel.subs_growth_28d,
-      subs_growth_48h: channel.subs_growth_48h,
+      views_28d: channel.views_28d,
+      views_48h: channel.views_48h,
       language: channel.language,
     })
     .select()

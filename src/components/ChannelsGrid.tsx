@@ -1,6 +1,6 @@
 'use client';
 
-import { Youtube, Trash2, Video, Users } from 'lucide-react';
+import { Youtube, Trash2, Video, Users, Eye } from 'lucide-react';
 
 interface Channel {
   id: string;
@@ -9,8 +9,8 @@ interface Channel {
   thumbnail_url: string;
   subscribers: string;
   video_count: string;
-  subsGrowth28d: string;
-  subsGrowth48h: string;
+  views28d: string;
+  views48h: string;
   language: string;
 }
 
@@ -37,9 +37,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
               />
             ) : (
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center flex-shrink-0 shadow-glow">
-                <span className="text-white font-bold">
-                  {channel.name.charAt(0)}
-                </span>
+                <span className="text-white font-bold">{channel.name.charAt(0)}</span>
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -57,23 +55,22 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
             </div>
           </div>
 
-          {/* Growth Stats */}
+          {/* Views Stats */}
           <div className="flex items-center gap-4 mb-3 px-1">
             <div className="flex items-center gap-1 text-xs">
-              <span className="text-[#86efac] font-semibold">+{channel.subsGrowth28d}</span>
+              <Eye className="w-3 h-3 text-[#71717a]" />
+              <span className="text-[#86efac] font-semibold">+{channel.views28d}</span>
               <span className="text-[#71717a]">(28d)</span>
             </div>
             <div className="flex items-center gap-1 text-xs">
-              <span className="text-[#86efac] font-semibold">+{channel.subsGrowth48h}</span>
+              <span className="text-[#86efac] font-semibold">+{channel.views48h}</span>
               <span className="text-[#71717a]">(48h)</span>
             </div>
           </div>
 
           {/* Actions Row */}
           <div className="flex items-center gap-2">
-            <span className="badge text-xs">
-              {channel.language}
-            </span>
+            <span className="badge text-xs">{channel.language}</span>
             <div className="flex-1">
               <a
                 href={`https://youtube.com/channel/${channel.channel_id}`}

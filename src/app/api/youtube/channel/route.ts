@@ -7,7 +7,7 @@ const youtubeApiKey = process.env.YOUTUBE_API_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-const CACHE_DURATION_HOURS = 12; // Refresh cache every 12 hours
+const CACHE_DURATION_HOURS = 12;
 
 interface YouTubeChannelData {
   channel_id: string;
@@ -58,7 +58,6 @@ async function fetchFromYouTube(identifier: string): Promise<YouTubeChannelData 
 
   let channelId = identifier;
   
-  // If it's a handle, search for it first
   if (identifier.startsWith('@')) {
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(identifier)}&key=${youtubeApiKey}`;
     const searchResp = await fetch(searchUrl);
@@ -75,7 +74,6 @@ async function fetchFromYouTube(identifier: string): Promise<YouTubeChannelData 
     channelId = searchData.items[0].snippet.channelId;
   }
   
-  // Fetch channel details
   const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&id=${channelId}&key=${youtubeApiKey}`;
   const resp = await fetch(url);
   const data = await resp.json();
@@ -125,7 +123,6 @@ async function fetchFromYouTube(identifier: string): Promise<YouTubeChannelData 
   };
 }
 
-// Save a snapshot of channel stats for tracking growth
 async function saveSnapshot(channelId: string, subscriberCount: string, videoCount: string, viewCount: string) {
   try {
     await supabase
@@ -141,8 +138,8 @@ async function saveSnapshot(channelId: string, subscriberCount: string, videoCou
   }
 }
 
-// Calculate growth by comparing current stats with historical snapshots
-async function calculateGrowth(channelId: string, currentSubs: string) {
+// Calculate VIEW growth by comparing current views with historical snapshots
+async function calculateViewGrowth(channelId: string, currentViews: string) {
   const now = new Date();
   const hours48Ago = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const days28Ago = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
@@ -150,7 +147,7 @@ async function calculateGrowth(channelId: string, currentSubs: string) {
   // Get snapshot from ~48 hours ago
   const { data: snapshot48h } = await supabase
     .from('channel_snapshots')
-    .select('subscriber_count')
+    .select('view_count')
     .eq('channel_id', channelId)
     .lte('created_at', hours48Ago.toISOString())
     .order('created_at', { ascending: false })
@@ -160,33 +157,33 @@ async function calculateGrowth(channelId: string, currentSubs: string) {
   // Get snapshot from ~28 days ago
   const { data: snapshot28d } = await supabase
     .from('channel_snapshots')
-    .select('subscriber_count')
+    .select('view_count')
     .eq('channel_id', channelId)
     .lte('created_at', days28Ago.toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
 
-  const currentSubsNum = parseInt(currentSubs) || 0;
+  const currentViewsNum = parseInt(currentViews) || 0;
   
-  let growth48h = 0;
-  let growth28d = 0;
+  let views48h = 0;
+  let views28d = 0;
 
   if (snapshot48h) {
-    const oldSubs = parseInt(snapshot48h.subscriber_count) || 0;
-    growth48h = currentSubsNum - oldSubs;
+    const oldViews = parseInt(snapshot48h.view_count) || 0;
+    views48h = currentViewsNum - oldViews;
   }
 
   if (snapshot28d) {
-    const oldSubs = parseInt(snapshot28d.subscriber_count) || 0;
-    growth28d = currentSubsNum - oldSubs;
+    const oldViews = parseInt(snapshot28d.view_count) || 0;
+    views28d = currentViewsNum - oldViews;
   }
 
   return {
-    growth_48h: growth48h,
-    growth_28d: growth28d,
-    growth_48h_formatted: formatGrowth(Math.max(0, growth48h)),
-    growth_28d_formatted: formatGrowth(Math.max(0, growth28d)),
+    views_48h: views48h,
+    views_28d: views28d,
+    views_48h_formatted: formatGrowth(Math.max(0, views48h)),
+    views_28d_formatted: formatGrowth(Math.max(0, views28d)),
   };
 }
 
@@ -199,7 +196,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing channel identifier' }, { status: 400 });
     }
 
-    // Check cache first
     const { data: cached } = await supabase
       .from('youtube_channels_cache')
       .select('*')
@@ -213,14 +209,12 @@ export async function GET(request: NextRequest) {
       channelData = cached as YouTubeChannelData;
       fromCache = true;
     } else {
-      // Fetch from YouTube API
       channelData = await fetchFromYouTube(identifier);
       
       if (!channelData) {
         return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
       }
 
-      // Save to cache
       await supabase
         .from('youtube_channels_cache')
         .upsert({
@@ -239,7 +233,6 @@ export async function GET(request: NextRequest) {
           onConflict: 'channel_id',
         });
 
-      // Save snapshot for growth tracking
       await saveSnapshot(
         channelData.channel_id,
         channelData.subscriber_count,
@@ -248,16 +241,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate growth stats
-    const growth = await calculateGrowth(channelData.channel_id, channelData.subscriber_count);
+    // Calculate VIEW growth stats
+    const viewGrowth = await calculateViewGrowth(channelData.channel_id, channelData.view_count);
 
     return NextResponse.json({
       ...channelData,
       subscriber_count_formatted: formatCount(channelData.subscriber_count),
       video_count_formatted: formatCount(channelData.video_count),
       view_count_formatted: formatCount(channelData.view_count),
-      growth_48h: growth.growth_48h_formatted,
-      growth_28d: growth.growth_28d_formatted,
+      views_48h: viewGrowth.views_48h_formatted,
+      views_28d: viewGrowth.views_28d_formatted,
       from_cache: fromCache,
     });
   } catch (error: any) {

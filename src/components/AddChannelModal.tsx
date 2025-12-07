@@ -13,8 +13,8 @@ interface AddChannelModalProps {
     thumbnail_url: string;
     subscribers: string;
     video_count: string;
-    subs_growth_28d: string;
-    subs_growth_48h: string;
+    views_28d: string;
+    views_48h: string;
     language: string;
   }) => Promise<void>;
 }
@@ -23,15 +23,12 @@ interface YouTubeChannelData {
   channel_id: string;
   handle: string | null;
   name: string;
-  description: string;
   thumbnail_url: string;
-  subscriber_count: string;
   subscriber_count_formatted: string;
   video_count_formatted: string;
   view_count_formatted: string;
-  growth_48h: string;
-  growth_28d: string;
-  country: string | null;
+  views_48h: string;
+  views_28d: string;
   from_cache: boolean;
 }
 
@@ -58,24 +55,16 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
     const cleanPath = pathname.replace(/\/(videos|shorts|streams|playlists|community|about|featured|live)?\/?$/, '');
 
     const channelMatch = cleanPath.match(/\/channel\/([a-zA-Z0-9_-]+)/);
-    if (channelMatch) {
-      return { type: 'channel', id: channelMatch[1] };
-    }
+    if (channelMatch) return { type: 'channel', id: channelMatch[1] };
 
     const handleMatch = cleanPath.match(/\/@([a-zA-Z0-9_.-]+)/);
-    if (handleMatch) {
-      return { type: 'handle', id: '@' + handleMatch[1] };
-    }
+    if (handleMatch) return { type: 'handle', id: '@' + handleMatch[1] };
 
     const customMatch = cleanPath.match(/\/c\/([a-zA-Z0-9_.-]+)/);
-    if (customMatch) {
-      return { type: 'custom', id: customMatch[1] };
-    }
+    if (customMatch) return { type: 'custom', id: customMatch[1] };
 
     const userMatch = cleanPath.match(/\/user\/([a-zA-Z0-9_.-]+)/);
-    if (userMatch) {
-      return { type: 'user', id: userMatch[1] };
-    }
+    if (userMatch) return { type: 'user', id: userMatch[1] };
 
     const directMatch = cleanPath.match(/^\/([a-zA-Z0-9_.-]+)$/);
     if (directMatch && !['watch', 'feed', 'gaming', 'music', 'premium', 'results'].includes(directMatch[1])) {
@@ -148,8 +137,8 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         thumbnail_url: channelData.thumbnail_url || '',
         subscribers: channelData.subscriber_count_formatted,
         video_count: channelData.video_count_formatted,
-        subs_growth_28d: channelData.growth_28d || '0',
-        subs_growth_48h: channelData.growth_48h || '0',
+        views_28d: channelData.views_28d || '0',
+        views_48h: channelData.views_48h || '0',
         language: language,
       });
       
@@ -188,30 +177,18 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
               className="input-field pl-11 pr-10"
               autoFocus
             />
-            {fetching && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#a855f7] animate-spin" />
-            )}
-            {channelData && !fetching && (
-              <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />
-            )}
-            {error && !fetching && parsed && (
-              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />
-            )}
+            {fetching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#a855f7] animate-spin" />}
+            {channelData && !fetching && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />}
+            {error && !fetching && parsed && <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />}
           </div>
-          <p className="text-xs text-[#71717a] mt-2">
-            Paste any YouTube channel link or @handle
-          </p>
+          <p className="text-xs text-[#71717a] mt-2">Paste any YouTube channel link or @handle</p>
         </div>
 
         {channelData && (
           <div className="p-4 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.2)]">
             <div className="flex items-center gap-4">
               {channelData.thumbnail_url ? (
-                <img 
-                  src={channelData.thumbnail_url} 
-                  alt={channelData.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
+                <img src={channelData.thumbnail_url} alt={channelData.name} className="w-16 h-16 rounded-full object-cover" />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center">
                   <span className="text-white text-xl font-bold">{channelData.name.charAt(0)}</span>
@@ -219,15 +196,15 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
               )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-[#f8fafc] truncate">{channelData.name}</h4>
-                <p className="text-sm text-[#a1a1aa]">{channelData.handle || channelData.channel_id}</p>
                 <div className="flex items-center gap-4 mt-1 text-xs text-[#71717a]">
-                  <span><strong className="text-[#c084fc]">{channelData.subscriber_count_formatted}</strong> subscribers</span>
+                  <span><strong className="text-[#c084fc]">{channelData.subscriber_count_formatted}</strong> subs</span>
                   <span><strong>{channelData.video_count_formatted}</strong> videos</span>
+                  <span><strong>{channelData.view_count_formatted}</strong> views</span>
                 </div>
-                {(channelData.growth_28d !== '0' || channelData.growth_48h !== '0') && (
+                {(channelData.views_28d !== '0' || channelData.views_48h !== '0') && (
                   <div className="flex items-center gap-3 mt-1 text-xs">
-                    <span className="text-[#86efac]">+{channelData.growth_28d} (28d)</span>
-                    <span className="text-[#86efac]">+{channelData.growth_48h} (48h)</span>
+                    <span className="text-[#86efac]">+{channelData.views_28d} views (28d)</span>
+                    <span className="text-[#86efac]">+{channelData.views_48h} views (48h)</span>
                   </div>
                 )}
               </div>
@@ -235,7 +212,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
             {channelData.from_cache && (
               <p className="text-xs text-[#71717a] mt-3 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[#86efac]"></span>
-                Loaded from cache (saves API calls!)
+                Loaded from cache
               </p>
             )}
           </div>
@@ -244,7 +221,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         {error && !channelData && channelUrl && parsed && (
           <div className="p-3 rounded-lg bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#fca5a5] text-sm">
             {error}
-            <p className="text-xs mt-1 opacity-75">Make sure YOUTUBE_API_KEY is set in Vercel</p>
           </div>
         )}
 
@@ -255,14 +231,8 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         )}
 
         <div>
-          <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">
-            Language
-          </label>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="input-field"
-          >
+          <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">Language</label>
+          <select value={language} onChange={(e) => setLanguage(e.target.value)} className="input-field">
             <option value="English">English</option>
             <option value="Spanish">Spanish</option>
             <option value="German">German</option>
@@ -279,23 +249,9 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex-1 btn btn-ghost"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading || fetching || !channelData}
-            className="flex-1 btn btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
+          <button type="button" onClick={handleClose} className="flex-1 btn btn-ghost">Cancel</button>
+          <button type="submit" disabled={loading || fetching || !channelData} className="flex-1 btn btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Add Channel
           </button>
         </div>
