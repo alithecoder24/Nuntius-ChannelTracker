@@ -13,7 +13,7 @@ import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
 import TagManagementModal from '@/components/TagManagementModal';
 import TeamManagementModal from '@/components/TeamManagementModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag, Users, ShieldX } from 'lucide-react';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag, Users, ShieldX, Flame } from 'lucide-react';
 
 interface Profile { id: string; name: string; visibility: 'private' | 'team'; createdBy: string; }
 
@@ -26,6 +26,7 @@ interface Channel {
   video_count: string;
   views28d: string;
   views48h: string;
+  views1d?: number;
   language: string;
   tag: string | null;
 }
@@ -43,7 +44,7 @@ const mockVideos = [{
   publishedAt: '2024-01-15',
 }];
 
-type SortOption = 'name' | 'subscribers' | 'views28d' | 'newest';
+type SortOption = 'name' | 'subscribers' | 'views28d' | 'views1d' | 'newest';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -59,7 +60,8 @@ export default function Home() {
   const [isTagManagementOpen, setIsTagManagementOpen] = useState(false);
   const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy, setSortBy] = useState<SortOption>('views1d');
+  const [minViews1d, setMinViews1d] = useState<number>(0);
   const [userTags, setUserTags] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     timeWindow: '48h', videoAmount: '10', minViews: '', maxViews: '', minLength: '', maxLength: '', searchQuery: '',
@@ -181,20 +183,59 @@ export default function Home() {
       
       try {
         const data = await getChannels(activeProfile);
-        if (mounted) {
-          setChannels(data.map(ch => ({
-            id: ch.id,
-            channel_id: ch.channel_id,
-            name: ch.name,
-            thumbnail_url: ch.thumbnail_url || '',
-            subscribers: ch.subscribers,
-            video_count: ch.video_count || '0',
-            views28d: ch.views_28d || '0',
-            views48h: ch.views_48h || '0',
-            language: ch.language,
-            tag: ch.tag || null,
-          })));
+        if (!mounted) return;
+
+        // Base channel data
+        const baseChannels = data.map(ch => ({
+          id: ch.id,
+          channel_id: ch.channel_id,
+          name: ch.name,
+          thumbnail_url: ch.thumbnail_url || '',
+          subscribers: ch.subscribers,
+          video_count: ch.video_count || '0',
+          views28d: ch.views_28d || '0',
+          views48h: ch.views_48h || '0',
+          language: ch.language,
+          tag: ch.tag || null,
+          views1d: 0,
+        }));
+
+        // Compute last-24h gains from snapshots (latest - previous)
+        const channelIds = baseChannels.map(c => c.channel_id);
+        let views1dMap: Record<string, number> = {};
+        if (channelIds.length > 0) {
+          const { data: snaps, error: snapError } = await supabase
+            .from('channel_snapshots')
+            .select('channel_id, view_count, created_at')
+            .in('channel_id', channelIds)
+            .order('created_at', { ascending: false });
+
+          if (!snapError && snaps) {
+            const grouped: Record<string, { latest?: number; prev?: number }> = {};
+            snaps.forEach(s => {
+              const vc = Number(s.view_count || '0');
+              if (!grouped[s.channel_id]) grouped[s.channel_id] = {};
+              if (grouped[s.channel_id]?.latest === undefined) {
+                grouped[s.channel_id].latest = vc;
+              } else if (grouped[s.channel_id]?.prev === undefined) {
+                grouped[s.channel_id].prev = vc;
+              }
+            });
+            views1dMap = Object.fromEntries(
+              Object.entries(grouped).map(([id, vals]) => {
+                const gain = (vals.latest ?? 0) - (vals.prev ?? vals.latest ?? 0);
+                return [id, Math.max(gain, 0)];
+              })
+            );
+          }
         }
+
+        const merged = baseChannels.map(ch => ({
+          ...ch,
+          views1d: views1dMap[ch.channel_id] ?? 0,
+        }));
+
+        setChannels(merged);
       } catch (err) {
         console.error('Error loading channels:', err);
       }
@@ -270,6 +311,7 @@ export default function Home() {
       video_count: newChannel.video_count || '0',
       views28d: newChannel.views_28d || '0',
       views48h: newChannel.views_48h || '0',
+      views1d: 0,
       language: newChannel.language,
       tag: channelData.tag,
     }, ...channels]);
@@ -329,8 +371,11 @@ export default function Home() {
   const openLogin = () => { setAuthMode('login'); setIsAuthModalOpen(true); };
   const openSignup = () => { setAuthMode('signup'); setIsAuthModalOpen(true); };
 
+  // Filter by 24h views
+  const filteredChannels = channels.filter(ch => (ch.views1d ?? 0) >= minViews1d);
+
   // Sort channels
-  const sortedChannels = [...channels].sort((a, b) => {
+  const sortedChannels = [...filteredChannels].sort((a, b) => {
     switch (sortBy) {
       case 'name':
         return a.name.localeCompare(b.name);
@@ -338,11 +383,23 @@ export default function Home() {
         return parseFloat(b.subscribers.replace(/[^0-9.]/g, '')) - parseFloat(a.subscribers.replace(/[^0-9.]/g, ''));
       case 'views28d':
         return parseFloat(b.views28d.replace(/[^0-9.]/g, '')) - parseFloat(a.views28d.replace(/[^0-9.]/g, ''));
+      case 'views1d':
+        return (b.views1d ?? 0) - (a.views1d ?? 0);
       case 'newest':
       default:
         return 0; // Keep original order (newest first from DB)
     }
   });
+
+  // Compute ranking by 24h views for highlighting
+  const rankedBy1d = [...sortedChannels].sort((a, b) => (b.views1d ?? 0) - (a.views1d ?? 0));
+  const topRanks: Record<string, number> = {};
+  rankedBy1d.forEach((ch, idx) => {
+    topRanks[ch.id] = idx + 1; // 1-based rank
+  });
+
+  // Pass down a helper to get rank-based highlight
+  const channelHighlights = topRanks;
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
 
@@ -461,8 +518,23 @@ export default function Home() {
             {profiles.length > 0 ? (
               <>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
+                  <div className="flex flex-col">
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
+                    <span className="text-[12px] text-[#71717a]">Sorted by 24h views (top 5 glow)</span>
+                  </div>
                   <div className="flex items-center gap-3">
+                    {/* Min 24h views filter */}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={minViews1d}
+                        onChange={(e) => setMinViews1d(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="Min 24h views"
+                        className="pl-10 pr-3 py-2.5 rounded-2xl text-[13px] font-medium text-[#a1a1aa] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] focus:outline-none focus:border-[rgba(168,85,247,0.4)] transition-colors w-40"
+                      />
+                      <Flame className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#fb923c]" />
+                    </div>
+
                     {/* Sort Dropdown */}
                     <div className="relative">
                       <select
@@ -474,6 +546,7 @@ export default function Home() {
                         <option value="name">Name A-Z</option>
                         <option value="subscribers">Most Subscribers</option>
                         <option value="views28d">Most Views (28d)</option>
+                        <option value="views1d">Most Views (24h)</option>
                       </select>
                       <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717a] pointer-events-none" />
                     </div>
@@ -503,6 +576,7 @@ export default function Home() {
                     onRemoveChannel={handleRemoveChannel}
                     userTags={userTags}
                     onUpdateTag={handleUpdateTag}
+                    channelHighlights={channelHighlights}
                   />
                 ) : (
                   <div className="glass-card p-12 text-center fade-in">

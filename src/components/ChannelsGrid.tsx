@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Youtube, Trash2, Video, Users, Eye, Tag, X, Check } from 'lucide-react';
+import { Youtube, Trash2, Video, Users, Eye, Tag, X, Check, Flame } from 'lucide-react';
 import ChannelStatsModal from './ChannelStatsModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -14,6 +14,7 @@ interface Channel {
   video_count: string;
   views28d: string;
   views48h: string;
+  views1d?: number;
   language: string;
   tag: string | null;
 }
@@ -23,9 +24,10 @@ interface ChannelsGridProps {
   onRemoveChannel: (id: string) => void;
   userTags: string[];
   onUpdateTag: (channelId: string, tag: string | null) => Promise<void>;
+  channelHighlights?: Record<string, number>; // rank per channel (1 = hottest)
 }
 
-export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUpdateTag }: ChannelsGridProps) {
+export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUpdateTag, channelHighlights }: ChannelsGridProps) {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Channel | null>(null);
@@ -36,6 +38,16 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
 
   // Get the current channel data from the channels array (so it updates when tag changes)
   const selectedChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) || null : null;
+
+  const formatNumber = (num?: number | string) => {
+    if (num === undefined || num === null) return '0';
+    const n = typeof num === 'string' ? parseFloat(num.replace(/[^0-9.-]/g, '')) : num;
+    if (Number.isNaN(n)) return '0';
+    if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return Math.round(n).toString();
+  };
 
   useEffect(() => {
     if (editingTagChannel && tagInputRef.current) {
@@ -115,12 +127,40 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 fade-in">
-        {channels.map((channel, index) => (
+        {channels.map((channel, index) => {
+          const rank = channelHighlights?.[channel.id];
+          const glowClass = rank
+            ? rank <= 3
+              ? 'border-[rgba(251,146,60,0.45)] shadow-[0_0_22px_rgba(251,146,60,0.35)]'
+              : rank <= 5
+                ? 'border-[rgba(251,191,36,0.35)] shadow-[0_0_18px_rgba(251,191,36,0.22)]'
+                : ''
+            : '';
+          const heatLabel = rank ? (rank <= 3 ? 'Hot' : rank <= 5 ? 'Warm' : '') : '';
+          return (
           <div
             key={channel.id}
-            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative group`}
+            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative group border ${glowClass}`}
             onClick={() => openStats(channel)}
           >
+            {/* Heat badge */}
+            {(channel.views1d ?? 0) > 0 && (
+              <div className="absolute -left-1 -top-2 z-10 flex items-center gap-2">
+                <div className={`px-2 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1
+                  ${rank && rank <= 3 ? 'bg-[rgba(251,146,60,0.18)] text-[#fb923c] border border-[rgba(251,146,60,0.35)]' :
+                    rank && rank <= 5 ? 'bg-[rgba(251,191,36,0.16)] text-[#fbbf24] border border-[rgba(251,191,36,0.3)]' :
+                    'bg-[rgba(168,85,247,0.12)] text-[#c084fc] border border-[rgba(168,85,247,0.25)]'}`}>
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>{formatNumber(channel.views1d)} views / 24h</span>
+                </div>
+                {heatLabel && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#f8fafc] bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.08)]">
+                    {heatLabel}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Tag at top right - Always visible when tag exists */}
             <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
               {editingTagChannel === channel.id ? (
