@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag, deleteTagFromAllChannels } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -11,7 +11,8 @@ import CreateProfileModal from '@/components/CreateProfileModal';
 import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown } from 'lucide-react';
+import TagManagementModal from '@/components/TagManagementModal';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag } from 'lucide-react';
 
 interface Profile { id: string; name: string; }
 
@@ -52,6 +53,7 @@ export default function Home() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
+  const [isTagManagementOpen, setIsTagManagementOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [userTags, setUserTags] = useState<string[]>([]);
@@ -187,6 +189,15 @@ export default function Home() {
     }
   };
 
+  const handleDeleteTag = async (tagToDelete: string) => {
+    if (!user) return;
+    await deleteTagFromAllChannels(user.id, tagToDelete);
+    // Remove tag from all channels in state
+    setChannels(channels.map(ch => ch.tag === tagToDelete ? { ...ch, tag: null } : ch));
+    // Remove from userTags
+    setUserTags(userTags.filter(t => t !== tagToDelete));
+  };
+
   const handleNewProfile = () => {
     if (!user) { setAuthMode('signup'); setIsAuthModalOpen(true); }
     else setIsCreateModalOpen(true);
@@ -304,6 +315,15 @@ export default function Home() {
                       </select>
                       <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717a] pointer-events-none" />
                     </div>
+
+                    {/* Manage Tags Button */}
+                    <button 
+                      onClick={() => setIsTagManagementOpen(true)} 
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-medium text-[#a1a1aa] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.3)] hover:text-[#c084fc] transition-all"
+                    >
+                      <Tag className="w-4 h-4" />
+                      Tags
+                    </button>
                     
                     {/* Add Channel Button - Glassy */}
                     <button 
@@ -352,6 +372,12 @@ export default function Home() {
         existingChannels={channels.map(ch => ({ channel_id: ch.channel_id, name: ch.name }))}
         userTags={userTags}
         onAddChannel={handleAddChannel} 
+      />
+      <TagManagementModal
+        isOpen={isTagManagementOpen}
+        onClose={() => setIsTagManagementOpen(false)}
+        tags={userTags}
+        onDeleteTag={handleDeleteTag}
       />
     </div>
   );

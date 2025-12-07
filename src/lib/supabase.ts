@@ -157,3 +157,25 @@ export async function getTags(userId: string): Promise<string[]> {
   const uniqueTags = Array.from(new Set(allTags));
   return uniqueTags;
 }
+
+export async function deleteTagFromAllChannels(userId: string, tagToDelete: string): Promise<void> {
+  // Get all user's profile IDs
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId);
+  
+  if (profileError) throw profileError;
+  if (!profiles || profiles.length === 0) return;
+  
+  const profileIds = profiles.map(p => p.id);
+  
+  // Set tag to null for all channels with this tag
+  const { error } = await supabase
+    .from('channels')
+    .update({ tag: null })
+    .in('profile_id', profileIds)
+    .eq('tag', tagToDelete);
+  
+  if (error) throw error;
+}
