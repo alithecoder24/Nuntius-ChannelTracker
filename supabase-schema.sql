@@ -116,3 +116,9 @@ create index if not exists profiles_user_id_idx on profiles(user_id);
 create index if not exists channels_profile_id_idx on channels(profile_id);
 create index if not exists youtube_cache_handle_idx on youtube_channels_cache(handle);
 create index if not exists youtube_cache_custom_url_idx on youtube_channels_cache(custom_url);
+
+-- ============================================
+-- MIGRATION: Add tag column to channels
+-- Run this if you already have the channels table
+-- ============================================
+-- ALTER TABLE channels ADD COLUMN IF NOT EXISTS tag text;

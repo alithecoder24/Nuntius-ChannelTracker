@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -11,7 +11,7 @@ import CreateProfileModal from '@/components/CreateProfileModal';
 import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus } from 'lucide-react';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown } from 'lucide-react';
 
 interface Profile { id: string; name: string; }
 
@@ -25,6 +25,7 @@ interface Channel {
   views28d: string;
   views48h: string;
   language: string;
+  tag: string | null;
 }
 
 const mockVideos = [{
@@ -40,6 +41,8 @@ const mockVideos = [{
   publishedAt: '2024-01-15',
 }];
 
+type SortOption = 'name' | 'subscribers' | 'views28d' | 'newest';
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,8 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [userTags, setUserTags] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     timeWindow: '48h', videoAmount: '10', minViews: '', maxViews: '', minLength: '', maxLength: '', searchQuery: '',
   });
@@ -66,8 +71,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (user) loadProfiles();
-    else { setProfiles([]); setChannels([]); setActiveProfile(null); }
+    if (user) {
+      loadProfiles();
+      loadTags();
+    }
+    else { setProfiles([]); setChannels([]); setActiveProfile(null); setUserTags([]); }
   }, [user]);
 
   useEffect(() => {
@@ -97,8 +105,17 @@ export default function Home() {
         views28d: ch.views_28d || '0',
         views48h: ch.views_48h || '0',
         language: ch.language,
+        tag: ch.tag || null,
       })));
     } catch (err) { console.error('Error loading channels:', err); }
+  };
+
+  const loadTags = async () => {
+    if (!user) return;
+    try {
+      const tags = await getTags(user.id);
+      setUserTags(tags);
+    } catch (err) { console.error('Error loading tags:', err); }
   };
 
   const handleCreateProfile = async (name: string) => {
@@ -145,6 +162,7 @@ export default function Home() {
         views28d: newChannel.views_28d || '0',
         views48h: newChannel.views_48h || '0',
         language: newChannel.language,
+        tag: null,
       }, ...channels]);
     } catch (err) { console.error('Error adding channel:', err); throw err; }
   };
@@ -156,6 +174,17 @@ export default function Home() {
     } catch (err) { console.error('Error removing channel:', err); }
   };
 
+  const handleUpdateTag = async (channelId: string, tag: string | null) => {
+    try {
+      await updateChannelTag(channelId, tag);
+      setChannels(channels.map(ch => ch.id === channelId ? { ...ch, tag } : ch));
+      // Add new tag to userTags if it doesn't exist
+      if (tag && !userTags.includes(tag)) {
+        setUserTags([...userTags, tag]);
+      }
+    } catch (err) { console.error('Error updating tag:', err); }
+  };
+
   const handleNewProfile = () => {
     if (!user) { setAuthMode('signup'); setIsAuthModalOpen(true); }
     else setIsCreateModalOpen(true);
@@ -163,6 +192,21 @@ export default function Home() {
 
   const openLogin = () => { setAuthMode('login'); setIsAuthModalOpen(true); };
   const openSignup = () => { setAuthMode('signup'); setIsAuthModalOpen(true); };
+
+  // Sort channels
+  const sortedChannels = [...channels].sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return a.name.localeCompare(b.name);
+      case 'subscribers':
+        return parseFloat(b.subscribers.replace(/[^0-9.]/g, '')) - parseFloat(a.subscribers.replace(/[^0-9.]/g, ''));
+      case 'views28d':
+        return parseFloat(b.views28d.replace(/[^0-9.]/g, '')) - parseFloat(a.views28d.replace(/[^0-9.]/g, ''));
+      case 'newest':
+      default:
+        return 0; // Keep original order (newest first from DB)
+    }
+  });
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
 
@@ -243,10 +287,39 @@ export default function Home() {
               <>
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
-                  <button onClick={() => setIsAddChannelModalOpen(true)} className="btn btn-primary flex items-center gap-2"><Plus className="w-4 h-4" />Add Channel</button>
+                  <div className="flex items-center gap-3">
+                    {/* Sort Dropdown */}
+                    <div className="relative">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="appearance-none pl-9 pr-4 py-2.5 rounded-2xl text-[13px] font-medium text-[#a1a1aa] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.3)] focus:outline-none focus:border-[rgba(168,85,247,0.4)] cursor-pointer transition-colors"
+                      >
+                        <option value="newest">Newest</option>
+                        <option value="name">Name A-Z</option>
+                        <option value="subscribers">Most Subscribers</option>
+                        <option value="views28d">Most Views (28d)</option>
+                      </select>
+                      <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717a] pointer-events-none" />
+                    </div>
+                    
+                    {/* Add Channel Button - Glassy */}
+                    <button 
+                      onClick={() => setIsAddChannelModalOpen(true)} 
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[13px] font-semibold text-[#c084fc] bg-[rgba(168,85,247,0.1)] backdrop-blur-xl border border-[rgba(168,85,247,0.25)] hover:bg-[rgba(168,85,247,0.2)] hover:border-[rgba(168,85,247,0.4)] transition-all shadow-[0_0_20px_rgba(168,85,247,0.15)]"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Channel
+                    </button>
+                  </div>
                 </div>
                 {channels.length > 0 ? (
-                  <ChannelsGrid channels={channels} onRemoveChannel={handleRemoveChannel} />
+                  <ChannelsGrid 
+                    channels={sortedChannels} 
+                    onRemoveChannel={handleRemoveChannel}
+                    userTags={userTags}
+                    onUpdateTag={handleUpdateTag}
+                  />
                 ) : (
                   <div className="glass-card p-12 text-center fade-in">
                     <div className="text-5xl mb-4 opacity-30">📺</div>

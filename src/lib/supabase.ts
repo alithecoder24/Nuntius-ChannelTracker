@@ -23,6 +23,7 @@ export interface Channel {
   views_28d: string;
   views_48h: string;
   language: string;
+  tag: string | null;
   created_at: string;
 }
 
@@ -117,4 +118,39 @@ export async function removeChannel(channelId: string) {
     .eq('id', channelId);
   
   if (error) throw error;
+}
+
+export async function updateChannelTag(channelId: string, tag: string | null) {
+  const { error } = await supabase
+    .from('channels')
+    .update({ tag })
+    .eq('id', channelId);
+  
+  if (error) throw error;
+}
+
+export async function getTags(userId: string): Promise<string[]> {
+  // Get all unique tags from user's channels across all profiles
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId);
+  
+  if (profileError) throw profileError;
+  
+  if (!profiles || profiles.length === 0) return [];
+  
+  const profileIds = profiles.map(p => p.id);
+  
+  const { data: channels, error: channelError } = await supabase
+    .from('channels')
+    .select('tag')
+    .in('profile_id', profileIds)
+    .not('tag', 'is', null);
+  
+  if (channelError) throw channelError;
+  
+  // Get unique tags
+  const uniqueTags = [...new Set((channels || []).map(c => c.tag).filter(Boolean))] as string[];
+  return uniqueTags;
 }

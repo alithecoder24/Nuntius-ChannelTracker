@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Youtube, Trash2, Video, Users, Eye } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Youtube, Trash2, Video, Users, Eye, Tag, X, Check } from 'lucide-react';
 import ChannelStatsModal from './ChannelStatsModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -15,17 +15,44 @@ interface Channel {
   views28d: string;
   views48h: string;
   language: string;
+  tag: string | null;
 }
 
 interface ChannelsGridProps {
   channels: Channel[];
   onRemoveChannel: (id: string) => void;
+  userTags: string[];
+  onUpdateTag: (channelId: string, tag: string | null) => void;
 }
 
-export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGridProps) {
+export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUpdateTag }: ChannelsGridProps) {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Channel | null>(null);
+  const [editingTagChannel, setEditingTagChannel] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState('');
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editingTagChannel && tagInputRef.current) {
+      tagInputRef.current.focus();
+    }
+  }, [editingTagChannel]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
+        setEditingTagChannel(null);
+        setTagInput('');
+      }
+    };
+
+    if (editingTagChannel) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [editingTagChannel]);
 
   const openStats = (channel: Channel) => {
     setSelectedChannel(channel);
@@ -44,17 +71,113 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
     setDeleteConfirm(null);
   };
 
+  const handleTagClick = (e: React.MouseEvent, channel: Channel) => {
+    e.stopPropagation();
+    setEditingTagChannel(channel.id);
+    setTagInput(channel.tag || '');
+  };
+
+  const handleTagSave = (channelId: string) => {
+    const trimmedTag = tagInput.trim();
+    onUpdateTag(channelId, trimmedTag || null);
+    setEditingTagChannel(null);
+    setTagInput('');
+  };
+
+  const handleTagRemove = (e: React.MouseEvent, channelId: string) => {
+    e.stopPropagation();
+    onUpdateTag(channelId, null);
+  };
+
+  const handleTagSelect = (channelId: string, tag: string) => {
+    onUpdateTag(channelId, tag);
+    setEditingTagChannel(null);
+    setTagInput('');
+  };
+
+  const filteredTags = userTags.filter(t => 
+    t.toLowerCase().includes(tagInput.toLowerCase()) && t !== tagInput
+  );
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 fade-in">
         {channels.map((channel, index) => (
           <div
             key={channel.id}
-            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer`}
+            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative`}
             onClick={() => openStats(channel)}
           >
+            {/* Tag at top right */}
+            <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+              {editingTagChannel === channel.id ? (
+                <div ref={tagMenuRef} className="relative">
+                  <div className="flex items-center gap-1 bg-[rgba(20,16,32,0.98)] rounded-lg border border-[rgba(168,85,247,0.3)] p-1">
+                    <input
+                      ref={tagInputRef}
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleTagSave(channel.id);
+                        if (e.key === 'Escape') {
+                          setEditingTagChannel(null);
+                          setTagInput('');
+                        }
+                      }}
+                      placeholder="Add tag..."
+                      className="w-24 px-2 py-1 text-xs bg-transparent text-[#f8fafc] focus:outline-none placeholder:text-[#71717a]"
+                    />
+                    <button
+                      onClick={() => handleTagSave(channel.id)}
+                      className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[rgba(168,85,247,0.2)] text-[#86efac]"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  
+                  {/* Tag suggestions dropdown */}
+                  {filteredTags.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 py-1 bg-[rgba(20,16,32,0.98)] rounded-lg border border-[rgba(168,85,247,0.2)] shadow-xl max-h-32 overflow-y-auto">
+                      {filteredTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => handleTagSelect(channel.id, tag)}
+                          className="w-full px-3 py-1.5 text-left text-xs text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] transition-colors"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : channel.tag ? (
+                <div className="group flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(168,85,247,0.2)] border border-[rgba(168,85,247,0.3)]">
+                  <span 
+                    className="text-[11px] font-medium text-[#c084fc] cursor-pointer"
+                    onClick={(e) => handleTagClick(e, channel)}
+                  >
+                    {channel.tag}
+                  </span>
+                  <button
+                    onClick={(e) => handleTagRemove(e, channel.id)}
+                    className="w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-[rgba(239,68,68,0.2)] text-[#fca5a5] transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => handleTagClick(e, channel)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-[rgba(113,113,122,0.1)] hover:bg-[rgba(168,85,247,0.15)] border border-transparent hover:border-[rgba(168,85,247,0.2)] text-[#71717a] hover:text-[#c084fc] transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Channel Header */}
-            <div className="flex items-start gap-3 mb-3">
+            <div className="flex items-start gap-3 mb-3 group">
               {channel.thumbnail_url ? (
                 <img 
                   src={channel.thumbnail_url} 
@@ -66,7 +189,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
                   <span className="text-white font-bold">{channel.name.charAt(0)}</span>
                 </div>
               )}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 pr-8">
                 <h3 className="font-semibold text-[#f8fafc] truncate">{channel.name}</h3>
                 <div className="flex items-center gap-3 mt-1 text-sm">
                   <span className="flex items-center gap-1">
