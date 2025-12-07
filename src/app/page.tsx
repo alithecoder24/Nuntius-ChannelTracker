@@ -270,7 +270,13 @@ export default function Home() {
       
       <CreateProfileModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onCreateProfile={handleCreateProfile} />
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authMode} />
-      <AddChannelModal isOpen={isAddChannelModalOpen} onClose={() => setIsAddChannelModalOpen(false)} onAddChannel={handleAddChannel} />
+      <AddChannelModal 
+        isOpen={isAddChannelModalOpen} 
+        onClose={() => setIsAddChannelModalOpen(false)} 
+        profileName={profiles.find(p => p.id === activeProfile)?.name || 'this profile'}
+        existingChannels={channels.map(ch => ({ channel_id: ch.channel_id, name: ch.name }))}
+        onAddChannel={handleAddChannel} 
+      />
     </div>
   );
 }

@@ -4,9 +4,16 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { Plus, Link, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
+interface ExistingChannel {
+  channel_id: string;
+  name: string;
+}
+
 interface AddChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
+  profileName: string;
+  existingChannels: ExistingChannel[];
   onAddChannel: (channelData: {
     channel_id: string;
     name: string;
@@ -77,17 +84,27 @@ function parseYouTubeUrl(url: string): { type: string; id: string } | null {
   }
 }
 
-export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddChannelModalProps) {
+export default function AddChannelModal({ isOpen, onClose, profileName, existingChannels, onAddChannel }: AddChannelModalProps) {
   const [channelUrl, setChannelUrl] = useState('');
   const [language, setLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [channelData, setChannelData] = useState<YouTubeChannelData | null>(null);
+
+  const checkDuplicate = (channelId: string): string | null => {
+    const existing = existingChannels.find(ch => ch.channel_id === channelId);
+    if (existing) {
+      return `"${existing.name}" is already in "${profileName}"`;
+    }
+    return null;
+  };
 
   const fetchChannelData = async (identifier: string) => {
     setFetching(true);
     setError('');
+    setDuplicateError(null);
     setChannelData(null);
 
     try {
@@ -96,6 +113,12 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
 
       if (!resp.ok) {
         throw new Error(data.error || 'Failed to fetch channel');
+      }
+
+      // Check for duplicate
+      const duplicate = checkDuplicate(data.channel_id);
+      if (duplicate) {
+        setDuplicateError(duplicate);
       }
 
       setChannelData(data);
@@ -110,6 +133,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
     setChannelUrl(value);
     setChannelData(null);
     setError('');
+    setDuplicateError(null);
 
     const parsed = parseYouTubeUrl(value);
     if (parsed) {
@@ -126,6 +150,10 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
     if (!channelData) {
       setError('Please enter a valid YouTube channel URL');
       return;
+    }
+
+    if (duplicateError) {
+      return; // Don't submit if it's a duplicate
     }
 
     setLoading(true);
@@ -154,6 +182,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
     setChannelUrl('');
     setLanguage('English');
     setError('');
+    setDuplicateError(null);
     setChannelData(null);
     onClose();
   };
@@ -178,13 +207,35 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
               autoFocus
             />
             {fetching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#a855f7] animate-spin" />}
-            {channelData && !fetching && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />}
-            {error && !fetching && parsed && <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />}
+            {channelData && !fetching && !duplicateError && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#86efac]" />}
+            {(error || duplicateError) && !fetching && parsed && <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#fca5a5]" />}
           </div>
           <p className="text-xs text-[#71717a] mt-2">Paste any YouTube channel link or @handle</p>
         </div>
 
-        {channelData && (
+        {/* Duplicate Error */}
+        {duplicateError && channelData && (
+          <div className="p-4 rounded-xl bg-[rgba(251,191,36,0.1)] border border-[rgba(251,191,36,0.3)]">
+            <div className="flex items-center gap-4">
+              {channelData.thumbnail_url ? (
+                <img src={channelData.thumbnail_url} alt={channelData.name} className="w-14 h-14 rounded-full object-cover opacity-60" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#a855f7] to-[#e879f9] flex items-center justify-center opacity-60">
+                  <span className="text-white text-lg font-bold">{channelData.name.charAt(0)}</span>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-[#fbbf24] truncate">{channelData.name}</h4>
+                <p className="text-sm text-[#fbbf24] mt-1">
+                  ⚠️ {duplicateError}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Channel Preview (non-duplicate) */}
+        {channelData && !duplicateError && (
           <div className="p-4 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.2)]">
             <div className="flex items-center gap-4">
               {channelData.thumbnail_url ? (
@@ -250,7 +301,11 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
 
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={handleClose} className="flex-1 btn btn-ghost">Cancel</button>
-          <button type="submit" disabled={loading || fetching || !channelData} className="flex-1 btn btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button 
+            type="submit" 
+            disabled={loading || fetching || !channelData || !!duplicateError} 
+            className="flex-1 btn btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Add Channel
           </button>
