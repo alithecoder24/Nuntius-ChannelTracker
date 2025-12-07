@@ -20,6 +20,7 @@ export interface Channel {
   name: string;
   thumbnail_url: string;
   subscribers: string;
+  video_count: string;
   subs_growth_28d: string;
   subs_growth_48h: string;
   language: string;
@@ -75,6 +76,7 @@ export async function addChannel(profileId: string, channel: {
   name: string;
   thumbnail_url?: string;
   subscribers: string;
+  video_count?: string;
   subs_growth_28d: string;
   subs_growth_48h: string;
   language: string;
@@ -87,6 +89,7 @@ export async function addChannel(profileId: string, channel: {
       name: channel.name,
       thumbnail_url: channel.thumbnail_url || '',
       subscribers: channel.subscribers,
+      video_count: channel.video_count || '0',
       subs_growth_28d: channel.subs_growth_28d,
       subs_growth_48h: channel.subs_growth_48h,
       language: channel.language,

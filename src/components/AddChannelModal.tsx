@@ -12,6 +12,7 @@ interface AddChannelModalProps {
     name: string;
     thumbnail_url: string;
     subscribers: string;
+    video_count: string;
     subs_growth_28d: string;
     subs_growth_48h: string;
     language: string;
@@ -32,7 +33,6 @@ interface YouTubeChannelData {
   from_cache: boolean;
 }
 
-// Parse various YouTube URL formats to extract channel identifier
 function parseYouTubeUrl(url: string): { type: string; id: string } | null {
   let cleanUrl = url.trim();
   
@@ -145,6 +145,7 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
         name: channelData.name,
         thumbnail_url: channelData.thumbnail_url || '',
         subscribers: channelData.subscriber_count_formatted,
+        video_count: channelData.video_count_formatted,
         subs_growth_28d: '0',
         subs_growth_48h: '0',
         language: language,
@@ -200,7 +201,6 @@ export default function AddChannelModal({ isOpen, onClose, onAddChannel }: AddCh
           </p>
         </div>
 
-        {/* Channel Preview */}
         {channelData && (
           <div className="p-4 rounded-xl bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.2)]">
             <div className="flex items-center gap-4">

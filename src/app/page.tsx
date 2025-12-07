@@ -20,9 +20,11 @@ interface Profile {
 
 interface Channel {
   id: string;
+  channel_id: string;
   name: string;
   thumbnail_url: string;
   subscribers: string;
+  video_count: string;
   subsGrowth28d: string;
   subsGrowth48h: string;
   language: string;
@@ -112,11 +114,13 @@ export default function Home() {
       const data = await getChannels(profileId);
       setChannels(data.map(ch => ({
         id: ch.id,
+        channel_id: ch.channel_id,
         name: ch.name,
         thumbnail_url: ch.thumbnail_url || '',
         subscribers: ch.subscribers,
-        subsGrowth28d: ch.subs_growth_28d,
-        subsGrowth48h: ch.subs_growth_48h,
+        video_count: ch.video_count || '0',
+        subsGrowth28d: ch.subs_growth_28d || '0',
+        subsGrowth48h: ch.subs_growth_48h || '0',
         language: ch.language,
       })));
     } catch (err) {
@@ -140,6 +144,7 @@ export default function Home() {
     name: string;
     thumbnail_url: string;
     subscribers: string;
+    video_count: string;
     subs_growth_28d: string;
     subs_growth_48h: string;
     language: string;
@@ -152,11 +157,13 @@ export default function Home() {
       const newChannel = await addChannel(activeProfile, channelData);
       setChannels([{
         id: newChannel.id,
+        channel_id: newChannel.channel_id,
         name: newChannel.name,
         thumbnail_url: newChannel.thumbnail_url || '',
         subscribers: newChannel.subscribers,
-        subsGrowth28d: newChannel.subs_growth_28d,
-        subsGrowth48h: newChannel.subs_growth_48h,
+        video_count: newChannel.video_count || '0',
+        subsGrowth28d: newChannel.subs_growth_28d || '0',
+        subsGrowth48h: newChannel.subs_growth_48h || '0',
         language: newChannel.language,
       }, ...channels]);
     } catch (err) {
