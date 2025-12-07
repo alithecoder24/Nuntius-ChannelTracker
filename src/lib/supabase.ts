@@ -151,6 +151,7 @@ export async function getTags(userId: string): Promise<string[]> {
   if (channelError) throw channelError;
   
   // Get unique tags
-  const uniqueTags = [...new Set((channels || []).map(c => c.tag).filter(Boolean))] as string[];
+  const allTags = (channels || []).map(c => c.tag).filter(Boolean) as string[];
+  const uniqueTags = Array.from(new Set(allTags));
   return uniqueTags;
 }
