@@ -18,6 +18,7 @@ interface SidebarProps {
   onNewProfile: () => void;
   onRenameProfile?: (id: string, newName: string) => void;
   onDeleteProfile?: (id: string) => void;
+  onToggleVisibility?: (id: string, visibility: 'private' | 'team') => void;
 }
 
 export default function Sidebar({ 
@@ -27,6 +28,7 @@ export default function Sidebar({
   onNewProfile,
   onRenameProfile,
   onDeleteProfile,
+  onToggleVisibility,
 }: SidebarProps) {
   const [menuOpenProfile, setMenuOpenProfile] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<string | null>(null);
@@ -153,6 +155,29 @@ export default function Sidebar({
                     ref={menuRef}
                     className="absolute left-0 right-0 top-full mt-1 z-50 py-1 rounded-xl bg-[rgba(20,16,32,0.98)] border border-[rgba(168,85,247,0.2)] shadow-xl backdrop-blur-xl"
                   >
+                    {/* Visibility Toggle */}
+                    <button
+                      onClick={() => {
+                        if (onToggleVisibility) {
+                          const newVisibility = profile.visibility === 'private' ? 'team' : 'private';
+                          onToggleVisibility(profile.id, newVisibility);
+                        }
+                        setMenuOpenProfile(null);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-[13px] text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] flex items-center gap-2.5 transition-colors"
+                    >
+                      {profile.visibility === 'private' ? (
+                        <>
+                          <Users className="w-3.5 h-3.5" />
+                          Make Team
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3.5 h-3.5" />
+                          Make Private
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => handleStartEdit(profile)}
                       className="w-full px-3 py-2.5 text-left text-[13px] text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] flex items-center gap-2.5 transition-colors"

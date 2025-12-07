@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag, deleteTagFromAllChannels, checkTeamMembership, getTeamMembers, inviteTeamMember, removeTeamMember, linkUserToTeamMember, type TeamMember } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile, getTags, updateChannelTag, deleteTagFromAllChannels, checkTeamMembership, getTeamMembers, inviteTeamMember, removeTeamMember, linkUserToTeamMember, updateProfileVisibility, type TeamMember } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -202,6 +202,13 @@ export default function Home() {
     } catch (err) { console.error('Error deleting profile:', err); }
   };
 
+  const handleToggleVisibility = async (id: string, visibility: 'private' | 'team') => {
+    try {
+      await updateProfileVisibility(id, visibility);
+      setProfiles(profiles.map(p => p.id === id ? { ...p, visibility } : p));
+    } catch (err) { console.error('Error updating visibility:', err); }
+  };
+
   const handleAddChannel = async (channelData: {
     channel_id: string; name: string; thumbnail_url: string; subscribers: string;
     video_count: string; views_28d: string; views_48h: string; language: string; tag: string | null;
@@ -399,6 +406,7 @@ export default function Home() {
           onNewProfile={handleNewProfile}
           onRenameProfile={handleRenameProfile}
           onDeleteProfile={handleDeleteProfile}
+          onToggleVisibility={handleToggleVisibility}
         />
 
         {/* Main Content */}
