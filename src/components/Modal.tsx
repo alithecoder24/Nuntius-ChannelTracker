@@ -8,10 +8,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'default' | 'large';
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
-  // Close on Escape key
+export default function Modal({ isOpen, onClose, title, children, size = 'default' }: ModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -32,15 +32,14 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      {/* Modal */}
-      <div className="relative glass-card p-6 w-full max-w-md mx-4 fade-in">
-        {/* Header */}
+      <div className={`relative glass-card p-6 mx-4 fade-in ${
+        size === 'large' ? 'w-full max-w-2xl' : 'w-full max-w-md'
+      }`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
             {title}
@@ -53,10 +52,8 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
           </button>
         </div>
         
-        {/* Content */}
         {children}
       </div>
     </div>
   );
 }
-
