@@ -95,22 +95,27 @@ export default function Home() {
       setActiveProfile(null); 
       setUserTags([]); 
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only re-run when user ID changes, not the whole user object
 
   const checkAccess = async () => {
     if (!user) return;
     try {
-      // Link user to team member record if exists
+      // Link user to team member record if exists (ignore errors)
       if (user.email) {
-        await linkUserToTeamMember(user.id, user.email);
+        try {
+          await linkUserToTeamMember(user.id, user.email);
+        } catch (e) {
+          // Ignore link errors
+        }
       }
       const member = await checkTeamMembership(user.id);
       setTeamMember(member);
       if (member) {
-        loadProfiles();
-        loadTags();
+        await loadProfiles();
+        await loadTags();
         if (member.role === 'owner' || member.role === 'admin') {
-          loadTeamMembers();
+          await loadTeamMembers();
         }
       }
     } catch (err) { 
@@ -135,14 +140,19 @@ export default function Home() {
     if (!user) return;
     try {
       const data = await getProfiles(user.id);
-      setProfiles(data.map(p => ({ 
+      const mappedProfiles = data.map(p => ({ 
         id: p.id, 
         name: p.name, 
-        visibility: p.visibility || 'team',
-        createdBy: p.created_by 
-      })));
-      if (data.length > 0 && !activeProfile) setActiveProfile(data[0].id);
-    } catch (err) { console.error('Error loading profiles:', err); }
+        visibility: (p.visibility || 'team') as 'private' | 'team',
+        createdBy: p.created_by || user.id
+      }));
+      setProfiles(mappedProfiles);
+      if (mappedProfiles.length > 0 && !activeProfile) {
+        setActiveProfile(mappedProfiles[0].id);
+      }
+    } catch (err) { 
+      console.error('Error loading profiles:', err); 
+    }
   };
 
   const loadChannels = async (profileId: string) => {
@@ -177,11 +187,15 @@ export default function Home() {
       setProfiles([...profiles, { 
         id: newProfile.id, 
         name: newProfile.name, 
-        visibility: newProfile.visibility,
+        visibility: newProfile.visibility || 'team',
         createdBy: newProfile.created_by 
       }]);
       setActiveProfile(newProfile.id);
-    } catch (err) { console.error('Error creating profile:', err); }
+      setIsCreateModalOpen(false);
+    } catch (err) { 
+      console.error('Error creating profile:', err); 
+      alert('Failed to create profile. Check console for details.');
+    }
   };
 
   const handleRenameProfile = async (id: string, newName: string) => {
@@ -206,7 +220,10 @@ export default function Home() {
     try {
       await updateProfileVisibility(id, visibility);
       setProfiles(profiles.map(p => p.id === id ? { ...p, visibility } : p));
-    } catch (err) { console.error('Error updating visibility:', err); }
+    } catch (err) { 
+      console.error('Error updating visibility:', err); 
+      alert('Failed to update visibility. Check console for details.');
+    }
   };
 
   const handleAddChannel = async (channelData: {
