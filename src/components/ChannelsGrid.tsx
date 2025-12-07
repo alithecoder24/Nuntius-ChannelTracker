@@ -138,7 +138,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
             : '';
           const heatLabel = rank ? (rank <= 3 ? 'Hot' : rank <= 5 ? 'Warm' : '') : '';
           return (
-          <div
+            <div
             key={channel.id}
             className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative group border ${glowClass}`}
             onClick={() => openStats(channel)}
