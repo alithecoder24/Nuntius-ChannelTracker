@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Loader2, TrendingUp, Users, Video, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -19,10 +19,13 @@ interface ChannelStatsModalProps {
   } | null;
 }
 
-interface Snapshot {
+interface DailyData {
   date: string;
+  fullDate: string;
   views: number;
   subscribers: number;
+  viewsGained: number;
+  subsGained: number;
 }
 
 const timeRanges = [
@@ -36,7 +39,7 @@ const timeRanges = [
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
+  return num.toLocaleString();
 }
 
 function formatDate(dateStr: string): string {
@@ -46,7 +49,7 @@ function formatDate(dateStr: string): string {
 
 export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelStatsModalProps) {
   const [timeRange, setTimeRange] = useState(28);
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [dailyData, setDailyData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'views' | 'subscribers'>('views');
 
@@ -62,7 +65,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
 
     try {
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - timeRange);
+      startDate.setDate(startDate.getDate() - timeRange - 1); // Get one extra day for calculating first day's diff
 
       const { data, error } = await supabase
         .from('channel_snapshots')
@@ -73,13 +76,30 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
 
       if (error) throw error;
 
-      const formattedData = (data || []).map(s => ({
-        date: formatDate(s.created_at),
-        views: parseInt(s.view_count) || 0,
-        subscribers: parseInt(s.subscriber_count) || 0,
-      }));
+      // Calculate daily gains (difference between consecutive days)
+      const processed: DailyData[] = [];
+      const rawData = data || [];
+      
+      for (let i = 1; i < rawData.length; i++) {
+        const current = rawData[i];
+        const previous = rawData[i - 1];
+        
+        const currentViews = parseInt(current.view_count) || 0;
+        const previousViews = parseInt(previous.view_count) || 0;
+        const currentSubs = parseInt(current.subscriber_count) || 0;
+        const previousSubs = parseInt(previous.subscriber_count) || 0;
+        
+        processed.push({
+          date: formatDate(current.created_at),
+          fullDate: current.created_at,
+          views: currentViews,
+          subscribers: currentSubs,
+          viewsGained: Math.max(0, currentViews - previousViews), // Views gained that day
+          subsGained: currentSubs - previousSubs, // Subs gained that day
+        });
+      }
 
-      setSnapshots(formattedData);
+      setDailyData(processed);
     } catch (err) {
       console.error('Error loading snapshots:', err);
     } finally {
@@ -89,14 +109,16 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
 
   if (!channel) return null;
 
-  // Calculate growth
-  const firstSnapshot = snapshots[0];
-  const lastSnapshot = snapshots[snapshots.length - 1];
-  const viewsGrowth = firstSnapshot && lastSnapshot ? lastSnapshot.views - firstSnapshot.views : 0;
-  const subsGrowth = firstSnapshot && lastSnapshot ? lastSnapshot.subscribers - firstSnapshot.subscribers : 0;
+  // Calculate totals for the period
+  const totalViewsGained = dailyData.reduce((sum, d) => sum + d.viewsGained, 0);
+  const totalSubsGained = dailyData.reduce((sum, d) => sum + d.subsGained, 0);
+  const avgDailyViews = dailyData.length > 0 ? Math.round(totalViewsGained / dailyData.length) : 0;
+
+  // Get chart data key based on view mode
+  const chartDataKey = viewMode === 'views' ? 'viewsGained' : 'subsGained';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Channel Analytics">
+    <Modal isOpen={isOpen} onClose={onClose} title="Channel Analytics" size="large">
       <div className="space-y-6">
         {/* Channel Header */}
         <div className="flex items-center gap-4">
@@ -122,31 +144,31 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
           </div>
         </div>
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Stats Summary - Shows GAINED in period */}
+        <div className="grid grid-cols-3 gap-3">
           <div className="glass-panel rounded-xl p-4">
-            <div className="text-xs text-[#71717a] uppercase mb-1">Views ({timeRanges.find(t => t.days === timeRange)?.label})</div>
-            <div className="text-2xl font-bold text-[#c084fc]">
-              {lastSnapshot ? formatNumber(lastSnapshot.views) : '-'}
+            <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1">
+              Views Gained ({timeRanges.find(t => t.days === timeRange)?.label})
             </div>
-            {viewsGrowth !== 0 && (
-              <div className={`text-sm flex items-center gap-1 ${viewsGrowth > 0 ? 'text-[#86efac]' : 'text-[#fca5a5]'}`}>
-                <TrendingUp className="w-3 h-3" />
-                {viewsGrowth > 0 ? '+' : ''}{formatNumber(viewsGrowth)}
-              </div>
-            )}
+            <div className="text-xl font-bold text-[#86efac]">
+              +{formatNumber(totalViewsGained)}
+            </div>
           </div>
           <div className="glass-panel rounded-xl p-4">
-            <div className="text-xs text-[#71717a] uppercase mb-1">Subs ({timeRanges.find(t => t.days === timeRange)?.label})</div>
-            <div className="text-2xl font-bold text-[#c084fc]">
-              {lastSnapshot ? formatNumber(lastSnapshot.subscribers) : '-'}
+            <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1">
+              Subs Gained ({timeRanges.find(t => t.days === timeRange)?.label})
             </div>
-            {subsGrowth !== 0 && (
-              <div className={`text-sm flex items-center gap-1 ${subsGrowth > 0 ? 'text-[#86efac]' : 'text-[#fca5a5]'}`}>
-                <TrendingUp className="w-3 h-3" />
-                {subsGrowth > 0 ? '+' : ''}{formatNumber(subsGrowth)}
-              </div>
-            )}
+            <div className={`text-xl font-bold ${totalSubsGained >= 0 ? 'text-[#86efac]' : 'text-[#fca5a5]'}`}>
+              {totalSubsGained >= 0 ? '+' : ''}{formatNumber(totalSubsGained)}
+            </div>
+          </div>
+          <div className="glass-panel rounded-xl p-4">
+            <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1">
+              Avg Daily Views
+            </div>
+            <div className="text-xl font-bold text-[#c084fc]">
+              {formatNumber(avgDailyViews)}
+            </div>
           </div>
         </div>
 
@@ -155,25 +177,25 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
           <div className="flex gap-2">
             <button
               onClick={() => setViewMode('views')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 viewMode === 'views'
                   ? 'bg-[#a855f7] text-white'
                   : 'bg-[rgba(168,85,247,0.1)] text-[#c084fc] hover:bg-[rgba(168,85,247,0.2)]'
               }`}
             >
-              <Eye className="w-4 h-4 inline mr-1" />
-              Views
+              <Eye className="w-4 h-4" />
+              Daily Views
             </button>
             <button
               onClick={() => setViewMode('subscribers')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 viewMode === 'subscribers'
                   ? 'bg-[#a855f7] text-white'
                   : 'bg-[rgba(168,85,247,0.1)] text-[#c084fc] hover:bg-[rgba(168,85,247,0.2)]'
               }`}
             >
-              <Users className="w-4 h-4 inline mr-1" />
-              Subscribers
+              <Users className="w-4 h-4" />
+              Daily Subs
             </button>
           </div>
 
@@ -195,68 +217,68 @@ export default function ChannelStatsModal({ isOpen, onClose, channel }: ChannelS
           </div>
         </div>
 
-        {/* Chart */}
-        <div className="glass-panel rounded-xl p-4 h-[300px]">
+        {/* Chart - Bar chart for daily gains */}
+        <div className="glass-panel rounded-xl p-4 h-[280px]">
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" />
             </div>
-          ) : snapshots.length > 0 ? (
+          ) : dailyData.length > 1 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={snapshots}>
+              <BarChart data={dailyData}>
                 <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                  <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.9}/>
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0.4}/>
                   </linearGradient>
                 </defs>
                 <XAxis 
                   dataKey="date" 
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#71717a', fontSize: 11 }}
+                  tick={{ fill: '#71717a', fontSize: 10 }}
+                  interval="preserveStartEnd"
                 />
                 <YAxis 
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#71717a', fontSize: 11 }}
+                  tick={{ fill: '#71717a', fontSize: 10 }}
                   tickFormatter={(value) => formatNumber(value)}
-                  width={60}
+                  width={50}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(20, 16, 32, 0.95)',
+                    backgroundColor: 'rgba(20, 16, 32, 0.98)',
                     border: '1px solid rgba(168, 85, 247, 0.3)',
                     borderRadius: '12px',
                     padding: '12px',
                   }}
-                  labelStyle={{ color: '#f8fafc', fontWeight: 600 }}
-                  formatter={(value: number) => [formatNumber(value), viewMode === 'views' ? 'Views' : 'Subscribers']}
+                  labelStyle={{ color: '#f8fafc', fontWeight: 600, marginBottom: 4 }}
+                  formatter={(value: number) => [
+                    `+${formatNumber(value)}`, 
+                    viewMode === 'views' ? 'Views Gained' : 'Subs Gained'
+                  ]}
                 />
-                <Area
-                  type="monotone"
-                  dataKey={viewMode}
-                  stroke="#a855f7"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorViews)"
+                <Bar
+                  dataKey={chartDataKey}
+                  fill="url(#colorBar)"
+                  radius={[4, 4, 0, 0]}
                 />
-              </AreaChart>
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-[#71717a]">
               <div className="text-4xl mb-3 opacity-30">📊</div>
-              <p className="text-sm">No data yet</p>
-              <p className="text-xs mt-1">Snapshots will appear after daily updates</p>
+              <p className="text-sm">Need at least 2 days of data</p>
+              <p className="text-xs mt-1">Daily tracking shows views gained each day</p>
             </div>
           )}
         </div>
 
         <p className="text-xs text-[#71717a] text-center">
-          Data updates daily at midnight (German time)
+          📈 Shows views/subs <span className="text-[#c084fc]">gained per day</span> • Updates daily at midnight (German time)
         </p>
       </div>
     </Modal>
   );
 }
-
