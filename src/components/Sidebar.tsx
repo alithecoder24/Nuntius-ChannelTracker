@@ -1,15 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { 
-  PenLine, 
-  Archive, 
-  Mic2, 
-  FileText, 
-  BookOpen,
-  Plus,
-  ChevronDown
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -29,16 +20,6 @@ export default function Sidebar({
   onProfileSelect,
   onNewProfile 
 }: SidebarProps) {
-  const [toolsExpanded, setToolsExpanded] = useState(true);
-
-  const tools = [
-    { id: 'script', name: 'Script Writing', icon: PenLine },
-    { id: 'prompts', name: 'Prompt Vault', icon: Archive },
-    { id: 'voice', name: 'Voice Generation', icon: Mic2 },
-    { id: 'transcription', name: 'Transcription', icon: FileText },
-    { id: 'resources', name: 'Resources', icon: BookOpen },
-  ];
-
   return (
     <aside className="w-[220px] h-screen glass-panel fixed left-0 top-0 flex flex-col z-10 border-r border-[rgba(168,85,247,0.15)]">
       {/* Logo */}
@@ -86,32 +67,6 @@ export default function Sidebar({
             New Profile
           </button>
         </nav>
-
-        {/* Tools Section */}
-        <div className="mt-8">
-          <button 
-            onClick={() => setToolsExpanded(!toolsExpanded)}
-            className="flex items-center justify-between w-full text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-3"
-          >
-            Tools
-            <ChevronDown 
-              className={`w-4 h-4 transition-transform ${toolsExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-          {toolsExpanded && (
-            <nav className="space-y-1">
-              {tools.map((tool) => (
-                <button
-                  key={tool.id}
-                  className="w-full text-left px-3 py-2.5 rounded-lg sidebar-link text-[#f8fafc] hover:text-white flex items-center gap-3"
-                >
-                  <tool.icon className="w-4 h-4 text-[#a1a1aa]" />
-                  {tool.name}
-                </button>
-              ))}
-            </nav>
-          )}
-        </div>
       </div>
 
       {/* Bottom gradient fade */}
