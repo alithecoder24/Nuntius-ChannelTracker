@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -10,7 +10,8 @@ import ChannelsGrid from '@/components/ChannelsGrid';
 import CreateProfileModal from '@/components/CreateProfileModal';
 import AuthModal from '@/components/AuthModal';
 import UserMenu from '@/components/UserMenu';
-import { Loader2, FolderOpen, TrendingUp, BarChart3 } from 'lucide-react';
+import AddChannelModal from '@/components/AddChannelModal';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -50,6 +51,7 @@ export default function Home() {
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [filters, setFilters] = useState({
     timeWindow: '48h',
@@ -133,6 +135,35 @@ export default function Home() {
       setActiveProfile(newProfile.id);
     } catch (err) {
       console.error('Error creating profile:', err);
+    }
+  };
+
+  const handleAddChannel = async (channelData: {
+    channel_id: string;
+    name: string;
+    subscribers: string;
+    subs_growth_28d: string;
+    subs_growth_48h: string;
+    language: string;
+  }) => {
+    if (!activeProfile) {
+      throw new Error('No profile selected');
+    }
+    
+    try {
+      const newChannel = await addChannel(activeProfile, channelData);
+      setChannels([{
+        id: newChannel.id,
+        name: newChannel.name,
+        avatar: '',
+        subscribers: newChannel.subscribers,
+        subsGrowth28d: newChannel.subs_growth_28d,
+        subsGrowth48h: newChannel.subs_growth_48h,
+        language: newChannel.language,
+      }, ...channels]);
+    } catch (err) {
+      console.error('Error adding channel:', err);
+      throw err;
     }
   };
 
@@ -317,18 +348,39 @@ export default function Home() {
           
           {profiles.length > 0 ? (
             <>
-              <ChannelsGrid 
-                channels={channels}
-                onRemoveChannel={handleRemoveChannel}
-              />
+              {/* Channels Header with Add Button */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
+                  Channels
+                </h2>
+                <button
+                  onClick={() => setIsAddChannelModalOpen(true)}
+                  className="btn btn-primary flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Channel
+                </button>
+              </div>
 
-              {channels.length === 0 && (
+              {channels.length > 0 ? (
+                <ChannelsGrid 
+                  channels={channels}
+                  onRemoveChannel={handleRemoveChannel}
+                />
+              ) : (
                 <div className="glass-card p-12 text-center fade-in">
                   <div className="text-5xl mb-4 opacity-30">📺</div>
                   <h3 className="text-xl font-semibold text-[#f8fafc] mb-2">No channels yet</h3>
-                  <p className="text-[#71717a]">
-                    Start tracking channels by searching above or adding them manually
+                  <p className="text-[#71717a] mb-6">
+                    Start tracking YouTube channels by adding them to this profile
                   </p>
+                  <button
+                    onClick={() => setIsAddChannelModalOpen(true)}
+                    className="btn btn-primary inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Your First Channel
+                  </button>
                 </div>
               )}
             </>
@@ -361,6 +413,12 @@ export default function Home() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         initialMode={authMode}
+      />
+
+      <AddChannelModal
+        isOpen={isAddChannelModalOpen}
+        onClose={() => setIsAddChannelModalOpen(false)}
+        onAddChannel={handleAddChannel}
       />
     </div>
   );
