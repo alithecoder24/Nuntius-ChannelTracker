@@ -108,10 +108,10 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
         {channels.map((channel, index) => (
           <div
             key={channel.id}
-            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative`}
+            className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative group`}
             onClick={() => openStats(channel)}
           >
-            {/* Tag at top right */}
+            {/* Tag at top right - Always visible when tag exists */}
             <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
               {editingTagChannel === channel.id ? (
                 <div ref={tagMenuRef} className="relative">
@@ -155,19 +155,14 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
                   )}
                 </div>
               ) : channel.tag ? (
-                <div className="group flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(168,85,247,0.2)] border border-[rgba(168,85,247,0.3)]">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[rgba(168,85,247,0.25)] border border-[rgba(168,85,247,0.4)]">
+                  <Tag className="w-3 h-3 text-[#c084fc]" />
                   <span 
-                    className="text-[11px] font-medium text-[#c084fc] cursor-pointer"
+                    className="text-[11px] font-semibold text-[#c084fc] cursor-pointer"
                     onClick={(e) => handleTagClick(e, channel)}
                   >
                     {channel.tag}
                   </span>
-                  <button
-                    onClick={(e) => handleTagRemove(e, channel.id)}
-                    className="w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-[rgba(239,68,68,0.2)] text-[#fca5a5] transition-opacity"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
                 </div>
               ) : (
                 <button
