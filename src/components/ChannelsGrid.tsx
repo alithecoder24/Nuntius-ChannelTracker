@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Youtube, Trash2, Video, Users, Eye } from 'lucide-react';
 import ChannelStatsModal from './ChannelStatsModal';
+import ConfirmModal from './ConfirmModal';
 
 interface Channel {
   id: string;
@@ -24,10 +25,23 @@ interface ChannelsGridProps {
 export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGridProps) {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Channel | null>(null);
 
   const openStats = (channel: Channel) => {
     setSelectedChannel(channel);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, channel: Channel) => {
+    e.stopPropagation();
+    setDeleteConfirm(channel);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirm) {
+      onRemoveChannel(deleteConfirm.id);
+    }
+    setDeleteConfirm(null);
   };
 
   return (
@@ -95,7 +109,7 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
                 </a>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); onRemoveChannel(channel.id); }}
+                onClick={(e) => handleDeleteClick(e, channel)}
                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-[rgba(239,68,68,0.1)] hover:bg-[rgba(239,68,68,0.2)] text-[#fca5a5] transition-colors border border-[rgba(239,68,68,0.2)]"
               >
                 <Trash2 className="w-4 h-4" />
@@ -110,6 +124,16 @@ export default function ChannelsGrid({ channels, onRemoveChannel }: ChannelsGrid
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         channel={selectedChannel}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remove Channel"
+        message={`Are you sure you want to remove "${deleteConfirm?.name}" from this profile? This will also delete all tracking history for this channel.`}
+        confirmText="Remove Channel"
       />
     </>
   );
