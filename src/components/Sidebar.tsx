@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -12,65 +13,145 @@ interface SidebarProps {
   activeProfile: string | null;
   onProfileSelect: (id: string) => void;
   onNewProfile: () => void;
+  onRenameProfile?: (id: string, newName: string) => void;
+  onDeleteProfile?: (id: string) => void;
 }
 
 export default function Sidebar({ 
   profiles, 
   activeProfile, 
   onProfileSelect,
-  onNewProfile 
+  onNewProfile,
+  onRenameProfile,
+  onDeleteProfile,
 }: SidebarProps) {
-  return (
-    <aside className="w-[220px] h-screen glass-panel fixed left-0 top-0 flex flex-col z-10 border-r border-[rgba(168,85,247,0.15)]">
-      {/* Logo */}
-      <div className="p-5 border-b border-[rgba(168,85,247,0.15)]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#e879f9] via-[#c084fc] to-[#a855f7] flex items-center justify-center shadow-glow">
-            <svg 
-              viewBox="0 0 24 24" 
-              className="w-5 h-5 text-white"
-              fill="currentColor"
-            >
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-          </div>
-          <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">
-            Nuntius
-          </span>
-        </div>
-      </div>
+  const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
+  const [menuOpenProfile, setMenuOpenProfile] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
-      {/* Niche Research Section */}
-      <div className="p-4 flex-1 overflow-y-auto">
-        <h3 className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-3">
+  const handleStartEdit = (profile: Profile) => {
+    setEditingProfile(profile.id);
+    setEditName(profile.name);
+    setMenuOpenProfile(null);
+  };
+
+  const handleSaveEdit = (id: string) => {
+    if (editName.trim() && onRenameProfile) {
+      onRenameProfile(id, editName.trim());
+    }
+    setEditingProfile(null);
+    setEditName('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === 'Enter') handleSaveEdit(id);
+    if (e.key === 'Escape') {
+      setEditingProfile(null);
+      setEditName('');
+    }
+  };
+
+  return (
+    <aside className="sidebar-glass w-[200px] fixed left-4 top-[88px] bottom-4 flex flex-col z-10 rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3">
+        <h3 className="text-[10px] font-semibold text-[#71717a] uppercase tracking-widest">
           Niche Research
         </h3>
+      </div>
+
+      {/* Profiles List */}
+      <div className="flex-1 px-2 overflow-y-auto">
         <nav className="space-y-1">
           {profiles.map((profile) => (
-            <button
+            <div
               key={profile.id}
-              onClick={() => onProfileSelect(profile.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg sidebar-link ${
-                activeProfile === profile.id 
-                  ? 'active' 
-                  : 'text-[#f8fafc] hover:text-white'
-              }`}
+              className="relative"
+              onMouseEnter={() => setHoveredProfile(profile.id)}
+              onMouseLeave={() => {
+                setHoveredProfile(null);
+                if (menuOpenProfile === profile.id) setMenuOpenProfile(null);
+              }}
             >
-              {profile.name}
-            </button>
+              {editingProfile === profile.id ? (
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={() => handleSaveEdit(profile.id)}
+                  onKeyDown={(e) => handleKeyDown(e, profile.id)}
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-xl bg-[rgba(168,85,247,0.15)] border border-[rgba(168,85,247,0.3)] text-sm text-[#f8fafc] focus:outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => onProfileSelect(profile.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 flex items-center justify-between group ${
+                    activeProfile === profile.id 
+                      ? 'bg-[rgba(168,85,247,0.2)] text-[#c084fc] border border-[rgba(168,85,247,0.3)]' 
+                      : 'text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
+                  }`}
+                >
+                  <span className="truncate">{profile.name}</span>
+                  
+                  {/* Settings button on hover */}
+                  {(hoveredProfile === profile.id || menuOpenProfile === profile.id) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpenProfile(menuOpenProfile === profile.id ? null : profile.id);
+                      }}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[rgba(168,85,247,0.2)] text-[#71717a] hover:text-[#c084fc] transition-colors"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  )}
+                </button>
+              )}
+
+              {/* Dropdown menu */}
+              {menuOpenProfile === profile.id && (
+                <div className="absolute right-0 top-full mt-1 z-50 min-w-[140px] py-1 rounded-xl bg-[rgba(20,16,32,0.98)] border border-[rgba(168,85,247,0.2)] shadow-xl backdrop-blur-xl">
+                  <button
+                    onClick={() => handleStartEdit(profile)}
+                    className="w-full px-3 py-2 text-left text-sm text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)] flex items-center gap-2 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Rename
+                  </button>
+                  {onDeleteProfile && (
+                    <button
+                      onClick={() => {
+                        onDeleteProfile(profile.id);
+                        setMenuOpenProfile(null);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-[#fca5a5] hover:bg-[rgba(239,68,68,0.1)] flex items-center gap-2 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
-          <button
-            onClick={onNewProfile}
-            className="w-full text-left px-3 py-2.5 rounded-lg text-[#71717a] hover:text-[#c084fc] flex items-center gap-2 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Profile
-          </button>
         </nav>
       </div>
 
-      {/* Bottom gradient fade */}
-      <div className="h-20 bg-gradient-to-t from-[rgba(15,12,25,0.9)] to-transparent pointer-events-none" />
+      {/* Separator */}
+      <div className="mx-3 my-2 h-px bg-gradient-to-r from-transparent via-[rgba(168,85,247,0.2)] to-transparent" />
+
+      {/* New Profile Button */}
+      <div className="p-3">
+        <button
+          onClick={onNewProfile}
+          className="w-full px-3 py-2.5 rounded-xl text-sm font-medium text-[#71717a] hover:text-[#c084fc] flex items-center justify-center gap-2 transition-all duration-150 border border-dashed border-[rgba(113,113,122,0.3)] hover:border-[rgba(168,85,247,0.4)] hover:bg-[rgba(168,85,247,0.05)]"
+        >
+          <Plus className="w-4 h-4" />
+          New Profile
+        </button>
+      </div>
     </aside>
   );
 }

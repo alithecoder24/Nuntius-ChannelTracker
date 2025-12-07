@@ -57,6 +57,18 @@ export async function deleteProfile(profileId: string) {
   if (error) throw error;
 }
 
+export async function renameProfile(profileId: string, newName: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ name: newName })
+    .eq('id', profileId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as Profile;
+}
+
 export async function getChannels(profileId: string) {
   const { data, error } = await supabase
     .from('channels')

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel } from '@/lib/supabase';
+import { supabase, getProfiles, getChannels, createProfile, removeChannel, addChannel, renameProfile, deleteProfile } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from '@/components/Sidebar';
 import FilterSection from '@/components/FilterSection';
@@ -110,6 +110,24 @@ export default function Home() {
     } catch (err) { console.error('Error creating profile:', err); }
   };
 
+  const handleRenameProfile = async (id: string, newName: string) => {
+    try {
+      await renameProfile(id, newName);
+      setProfiles(profiles.map(p => p.id === id ? { ...p, name: newName } : p));
+    } catch (err) { console.error('Error renaming profile:', err); }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    try {
+      await deleteProfile(id);
+      const remaining = profiles.filter(p => p.id !== id);
+      setProfiles(remaining);
+      if (activeProfile === id) {
+        setActiveProfile(remaining.length > 0 ? remaining[0].id : null);
+      }
+    } catch (err) { console.error('Error deleting profile:', err); }
+  };
+
   const handleAddChannel = async (channelData: {
     channel_id: string; name: string; thumbnail_url: string; subscribers: string;
     video_count: string; views_28d: string; views_48h: string; language: string;
@@ -195,13 +213,29 @@ export default function Home() {
   return (
     <div className="min-h-screen relative z-[1]">
       <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
-      <Sidebar profiles={profiles} activeProfile={activeProfile} onProfileSelect={setActiveProfile} onNewProfile={handleNewProfile} />
-      <main className="ml-[220px] p-6 relative z-[1]">
+      
+      {/* Top Header */}
+      <header className="relative z-10 h-[72px] px-6 flex items-center justify-between">
+        <div /> {/* Empty left side */}
+        <div className="flex justify-center">
+          <span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span>
+        </div>
+        <UserMenu user={user} />
+      </header>
+
+      {/* Sidebar */}
+      <Sidebar 
+        profiles={profiles} 
+        activeProfile={activeProfile} 
+        onProfileSelect={setActiveProfile} 
+        onNewProfile={handleNewProfile}
+        onRenameProfile={handleRenameProfile}
+        onDeleteProfile={handleDeleteProfile}
+      />
+
+      {/* Main Content */}
+      <main className="ml-[224px] mr-4 pb-6 relative z-[1]">
         <div className="max-w-[1600px] mx-auto space-y-6">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex-1 flex justify-center"><span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span></div>
-            <div className="absolute right-6 top-6"><UserMenu user={user} /></div>
-          </div>
           <FilterSection filters={filters} onFilterChange={setFilters} />
           <VideoResults videos={mockVideos} />
           {profiles.length > 0 ? (
