@@ -215,9 +215,9 @@ export default function Home() {
       <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
       
       {/* Top Header */}
-      <header className="relative z-10 h-[72px] px-6 flex items-center justify-between">
-        <div /> {/* Empty left side */}
-        <div className="flex justify-center">
+      <header className="relative z-10 h-[80px] px-6 flex items-center">
+        <div className="w-[224px]" /> {/* Spacer for sidebar */}
+        <div className="flex-1 flex justify-center">
           <span className="badge"><span className="text-[#e879f9]">✦</span> Channel Tracker</span>
         </div>
         <UserMenu user={user} />
@@ -234,7 +234,7 @@ export default function Home() {
       />
 
       {/* Main Content */}
-      <main className="ml-[224px] mr-4 pb-6 relative z-[1]">
+      <main className="ml-[224px] mr-6 pb-6 relative z-[1]">
         <div className="max-w-[1600px] mx-auto space-y-6">
           <FilterSection filters={filters} onFilterChange={setFilters} />
           <VideoResults videos={mockVideos} />

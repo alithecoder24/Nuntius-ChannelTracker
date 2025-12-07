@@ -53,10 +53,10 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="sidebar-glass w-[200px] fixed left-4 top-[88px] bottom-4 flex flex-col z-10 rounded-2xl overflow-hidden">
+    <aside className="sidebar-glass w-[200px] fixed left-4 top-[96px] bottom-4 flex flex-col z-10 rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3">
-        <h3 className="text-[10px] font-semibold text-[#71717a] uppercase tracking-widest">
+      <div className="px-4 pt-5 pb-3">
+        <h3 className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
           Niche Research
         </h3>
       </div>
@@ -82,12 +82,12 @@ export default function Sidebar({
                   onBlur={() => handleSaveEdit(profile.id)}
                   onKeyDown={(e) => handleKeyDown(e, profile.id)}
                   autoFocus
-                  className="w-full px-3 py-2 rounded-xl bg-[rgba(168,85,247,0.15)] border border-[rgba(168,85,247,0.3)] text-sm text-[#f8fafc] focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl bg-[rgba(168,85,247,0.15)] border border-[rgba(168,85,247,0.3)] text-[13px] text-[#f8fafc] focus:outline-none"
                 />
               ) : (
                 <button
                   onClick={() => onProfileSelect(profile.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 flex items-center justify-between group ${
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 flex items-center justify-between group ${
                     activeProfile === profile.id 
                       ? 'bg-[rgba(168,85,247,0.2)] text-[#c084fc] border border-[rgba(168,85,247,0.3)]' 
                       : 'text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
@@ -146,10 +146,10 @@ export default function Sidebar({
       <div className="p-3">
         <button
           onClick={onNewProfile}
-          className="w-full px-3 py-2.5 rounded-xl text-sm font-medium text-[#71717a] hover:text-[#c084fc] flex items-center justify-center gap-2 transition-all duration-150 border border-dashed border-[rgba(113,113,122,0.3)] hover:border-[rgba(168,85,247,0.4)] hover:bg-[rgba(168,85,247,0.05)]"
+          className="w-full py-2.5 rounded-xl text-[13px] font-medium text-[#71717a] hover:text-[#c084fc] flex items-center justify-center gap-2 transition-all duration-150 border border-dashed border-[rgba(113,113,122,0.3)] hover:border-[rgba(168,85,247,0.4)] hover:bg-[rgba(168,85,247,0.05)]"
         >
-          <Plus className="w-4 h-4" />
-          New Profile
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Profile</span>
         </button>
       </div>
     </aside>
