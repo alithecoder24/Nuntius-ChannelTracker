@@ -230,26 +230,28 @@ export default function Home() {
     channel_id: string; name: string; thumbnail_url: string; subscribers: string;
     video_count: string; views_28d: string; views_48h: string; language: string; tag: string | null;
   }) => {
-    if (!activeProfile) throw new Error('No profile selected');
-    try {
-      const newChannel = await addChannel(activeProfile, channelData);
-      setChannels([{
-        id: newChannel.id,
-        channel_id: newChannel.channel_id,
-        name: newChannel.name,
-        thumbnail_url: newChannel.thumbnail_url || '',
-        subscribers: newChannel.subscribers,
-        video_count: newChannel.video_count || '0',
-        views28d: newChannel.views_28d || '0',
-        views48h: newChannel.views_48h || '0',
-        language: newChannel.language,
-        tag: channelData.tag,
-      }, ...channels]);
-      // Add new tag to userTags if it doesn't exist
-      if (channelData.tag && !userTags.includes(channelData.tag)) {
-        setUserTags([...userTags, channelData.tag]);
-      }
-    } catch (err) { console.error('Error adding channel:', err); throw err; }
+    if (!activeProfile) {
+      alert('No profile selected');
+      throw new Error('No profile selected');
+    }
+    
+    const newChannel = await addChannel(activeProfile, channelData);
+    setChannels([{
+      id: newChannel.id,
+      channel_id: newChannel.channel_id,
+      name: newChannel.name,
+      thumbnail_url: newChannel.thumbnail_url || '',
+      subscribers: newChannel.subscribers,
+      video_count: newChannel.video_count || '0',
+      views28d: newChannel.views_28d || '0',
+      views48h: newChannel.views_48h || '0',
+      language: newChannel.language,
+      tag: channelData.tag,
+    }, ...channels]);
+    // Add new tag to userTags if it doesn't exist
+    if (channelData.tag && !userTags.includes(channelData.tag)) {
+      setUserTags([...userTags, channelData.tag]);
+    }
   };
 
   const handleRemoveChannel = async (channelId: string) => {
