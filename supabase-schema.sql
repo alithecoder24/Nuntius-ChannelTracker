@@ -118,7 +118,27 @@ create index if not exists youtube_cache_handle_idx on youtube_channels_cache(ha
 create index if not exists youtube_cache_custom_url_idx on youtube_channels_cache(custom_url);
 
 -- ============================================
--- MIGRATION: Add tag column to channels
+-- MIGRATION: Add missing columns to channels table
 -- Run this if you already have the channels table
 -- ============================================
--- ALTER TABLE channels ADD COLUMN IF NOT EXISTS tag text;
+
+-- Add all missing columns
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS thumbnail_url text DEFAULT '';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS video_count text DEFAULT '0';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS views_28d text DEFAULT '0';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS views_48h text DEFAULT '0';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS tag text;
+
+-- Channel Snapshots table (for tracking historical data)
+CREATE TABLE IF NOT EXISTS channel_snapshots (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  channel_id text NOT NULL,
+  subscriber_count bigint DEFAULT 0,
+  video_count bigint DEFAULT 0,
+  view_count bigint DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Index for faster snapshot queries
+CREATE INDEX IF NOT EXISTS channel_snapshots_channel_id_idx ON channel_snapshots(channel_id);
+CREATE INDEX IF NOT EXISTS channel_snapshots_created_at_idx ON channel_snapshots(created_at DESC);
