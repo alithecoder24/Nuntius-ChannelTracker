@@ -91,8 +91,10 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
 
       if (error) throw error;
 
-      const processed: DailyData[] = [];
       const rawData = data || [];
+      
+      // First, calculate gains between consecutive snapshots
+      const rawGains: { date: string; viewsGained: number; subsGained: number; views: number; subscribers: number }[] = [];
       
       for (let i = 1; i < rawData.length; i++) {
         const current = rawData[i];
@@ -103,17 +105,41 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
         const currentSubs = parseInt(current.subscriber_count) || 0;
         const previousSubs = parseInt(previous.subscriber_count) || 0;
         
-        // Use the PREVIOUS snapshot's date since that's when the views were generated
-        // (the current snapshot just records the accumulated total)
-        processed.push({
-          date: formatDate(previous.created_at),
-          fullDate: previous.created_at,
-          views: currentViews,
-          subscribers: currentSubs,
+        // Use the PREVIOUS snapshot's date (UTC) since that's when views were generated
+        const dateLabel = formatDate(previous.created_at);
+        
+        rawGains.push({
+          date: dateLabel,
           viewsGained: Math.max(0, currentViews - previousViews),
           subsGained: currentSubs - previousSubs,
+          views: currentViews,
+          subscribers: currentSubs,
         });
       }
+      
+      // Aggregate by date (combine multiple entries for the same day)
+      const aggregated: Record<string, DailyData> = {};
+      rawGains.forEach(g => {
+        if (!aggregated[g.date]) {
+          aggregated[g.date] = {
+            date: g.date,
+            fullDate: g.date,
+            views: g.views,
+            subscribers: g.subscribers,
+            viewsGained: 0,
+            subsGained: 0,
+          };
+        }
+        aggregated[g.date].viewsGained += g.viewsGained;
+        aggregated[g.date].subsGained += g.subsGained;
+        aggregated[g.date].views = g.views; // Use latest
+        aggregated[g.date].subscribers = g.subscribers; // Use latest
+      });
+      
+      // Convert to array and sort by date
+      const processed = Object.values(aggregated).sort((a, b) => 
+        new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime()
+      );
 
       setDailyData(processed);
     } catch (err) {

@@ -200,7 +200,7 @@ export default function Home() {
           views1d: 0,
         }));
 
-        // Compute last-24h gains from snapshots (latest - previous)
+        // Compute total views gained from all snapshots (sum of all daily gains)
         const channelIds = baseChannels.map(c => c.channel_id);
         let views1dMap: Record<string, number> = {};
         if (channelIds.length > 0) {
@@ -208,23 +208,28 @@ export default function Home() {
             .from('channel_snapshots')
             .select('channel_id, view_count, created_at')
             .in('channel_id', channelIds)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true }); // Oldest first for proper diff calculation
 
           if (!snapError && snaps) {
-            const grouped: Record<string, { latest?: number; prev?: number }> = {};
+            // Group snapshots by channel
+            const grouped: Record<string, { view_count: number; created_at: string }[]> = {};
             snaps.forEach(s => {
-              const vc = Number(s.view_count || '0');
-              if (!grouped[s.channel_id]) grouped[s.channel_id] = {};
-              if (grouped[s.channel_id]?.latest === undefined) {
-                grouped[s.channel_id].latest = vc;
-              } else if (grouped[s.channel_id]?.prev === undefined) {
-                grouped[s.channel_id].prev = vc;
-              }
+              if (!grouped[s.channel_id]) grouped[s.channel_id] = [];
+              grouped[s.channel_id].push({
+                view_count: Number(s.view_count || '0'),
+                created_at: s.created_at,
+              });
             });
+            
+            // Calculate total views gained (sum of all consecutive differences)
             views1dMap = Object.fromEntries(
-              Object.entries(grouped).map(([id, vals]) => {
-                const gain = (vals.latest ?? 0) - (vals.prev ?? vals.latest ?? 0);
-                return [id, Math.max(gain, 0)];
+              Object.entries(grouped).map(([id, snapshots]) => {
+                let totalGain = 0;
+                for (let i = 1; i < snapshots.length; i++) {
+                  const diff = snapshots[i].view_count - snapshots[i - 1].view_count;
+                  totalGain += Math.max(0, diff);
+                }
+                return [id, totalGain];
               })
             );
           }
