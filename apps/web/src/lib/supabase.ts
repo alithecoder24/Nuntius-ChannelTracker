@@ -314,6 +314,17 @@ export async function getVideoJobs(userId: string): Promise<VideoJob[]> {
   return data as VideoJob[];
 }
 
+export async function deleteVideoJob(jobId: string): Promise<void> {
+  // Note: R2 file deletion happens via lifecycle rules (24h auto-delete)
+  // or could be handled by a separate cleanup worker
+  const { error } = await supabase
+    .from('video_jobs')
+    .delete()
+    .eq('id', jobId);
+  
+  if (error) throw error;
+}
+
 export async function subscribeToVideoJobs(userId: string, callback: (job: VideoJob) => void) {
   return supabase
     .channel('video_jobs_changes')

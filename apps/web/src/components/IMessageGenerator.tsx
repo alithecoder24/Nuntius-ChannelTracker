@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X, Image, Monitor, Smartphone, Film, ChevronDown } from 'lucide-react';
-import { createVideoJob, getVideoJobs, subscribeToVideoJobs, getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat } from '@/lib/supabase';
+import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X, Image, Monitor, Smartphone, Film, ChevronDown, Info } from 'lucide-react';
+import { createVideoJob, getVideoJobs, deleteVideoJob, subscribeToVideoJobs, getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat } from '@/lib/supabase';
 
 interface Person {
   id: string;
@@ -401,28 +401,8 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
               />
             </div>
 
-            {/* Language & Dark Mode */}
+            {/* Darkmode Toggle */}
             <div className="flex items-end gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Language</label>
-                <div className="flex gap-2">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => setLanguage(lang.code)}
-                      className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 ${
-                        language === lang.code
-                          ? 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-[#4ade80]'
-                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
-                      }`}
-                    >
-                      <span className="text-xl">{lang.flag}</span>
-                      <span className="text-sm font-medium">{lang.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Darkmode</label>
                 <button
@@ -634,7 +614,7 @@ x-A: This is from sender (blue bubble)
 text: typing indicator...
 -$-
 B: Cool!`}
-                className="w-full h-40 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-none font-mono text-sm"
+                className="w-full h-40 min-h-[160px] px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-y font-mono text-sm"
               />
             </div>
           </div>
@@ -729,7 +709,13 @@ B: Cool!`}
 
       {/* Job Queue */}
       <div className="glass-card p-6">
-        <h2 className="text-lg font-semibold text-[#f8fafc] mb-4">Recent Jobs</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-[#f8fafc]">Recent Jobs</h2>
+          <div className="flex items-center gap-1.5 text-xs text-[#52525b]">
+            <Info className="w-3.5 h-3.5" />
+            <span>Video files auto-delete after 24h</span>
+          </div>
+        </div>
         
         {jobs.length === 0 ? (
           <div className="text-center py-12 text-[#52525b]">
@@ -740,7 +726,7 @@ B: Cool!`}
         ) : (
           <div className="space-y-3">
             {jobs.map(job => (
-              <div key={job.id} className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors">
+              <div key={job.id} className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors group">
                 <div className="flex items-center gap-4">
                   {getStatusIcon(job.status)}
                   <div>
@@ -749,23 +735,43 @@ B: Cool!`}
                   </div>
                 </div>
                 
-                {job.status === 'completed' && job.output_url && (
-                  <a
-                    href={job.output_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-xl text-sm font-medium text-[#4ade80] bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.25)] hover:bg-[rgba(34,197,94,0.2)] transition-colors inline-flex items-center gap-2"
+                <div className="flex items-center gap-2">
+                  {job.status === 'completed' && job.output_url && (
+                    <a
+                      href={job.output_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-xl text-sm font-medium text-[#4ade80] bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.25)] hover:bg-[rgba(34,197,94,0.2)] transition-colors inline-flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </a>
+                  )}
+                  
+                  {job.status === 'processing' && job.progress > 0 && (
+                    <div className="w-24 h-2 bg-[rgba(15,12,25,0.6)] rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] transition-all duration-300" style={{ width: `${job.progress}%` }} />
+                    </div>
+                  )}
+                  
+                  {/* Delete Button */}
+                  <button
+                    onClick={async () => {
+                      if (confirm('Delete this job? The video file will also be removed.')) {
+                        try {
+                          await deleteVideoJob(job.id);
+                          setJobs(prev => prev.filter(j => j.id !== job.id));
+                        } catch (err) {
+                          console.error('Error deleting job:', err);
+                        }
+                      }
+                    }}
+                    className="p-2 rounded-lg text-[#71717a] hover:text-[#f87171] hover:bg-[rgba(248,113,113,0.1)] transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete job"
                   >
-                    <Download className="w-4 h-4" />
-                    Download
-                  </a>
-                )}
-                
-                {job.status === 'processing' && job.progress > 0 && (
-                  <div className="w-24 h-2 bg-[rgba(15,12,25,0.6)] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] transition-all duration-300" style={{ width: `${job.progress}%` }} />
-                  </div>
-                )}
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
