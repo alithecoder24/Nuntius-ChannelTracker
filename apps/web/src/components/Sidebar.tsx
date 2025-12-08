@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Lock, Users, MessageSquare, Wrench } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Lock, Users, MessageSquare, Video, Wrench } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 
 interface Profile {
@@ -241,6 +241,17 @@ export default function Sidebar({
             >
               <MessageSquare className="w-4 h-4" />
               iMessage Gen
+            </button>
+            <button
+              onClick={() => onToolSelect('pravus-generator')}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-150 flex items-center gap-2 ${
+                activeTool === 'pravus-generator'
+                  ? 'bg-[rgba(234,88,12,0.15)] text-[#fb923c] border border-[rgba(234,88,12,0.3)]'
+                  : 'text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
+              }`}
+            >
+              <Video className="w-4 h-4" />
+              Reddit Gen
             </button>
           </nav>
         </div>

@@ -15,6 +15,7 @@ import TagManagementModal from '@/components/TagManagementModal';
 import TeamManagementModal from '@/components/TeamManagementModal';
 import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, Tag, Users, ShieldX, Flame } from 'lucide-react';
 import IMessageGenerator from '@/components/IMessageGenerator';
+import PravusGenerator from '@/components/PravusGenerator';
 
 interface Profile { id: string; name: string; visibility: 'private' | 'team'; createdBy: string; }
 
@@ -549,6 +550,8 @@ export default function Home() {
           {/* Tool View */}
           {activeTool === 'imessage-generator' && user ? (
             <IMessageGenerator userId={user.id} />
+          ) : activeTool === 'pravus-generator' && user ? (
+            <PravusGenerator userId={user.id} />
           ) : (
           <div className="w-full space-y-6">
             <FilterSection filters={filters} onFilterChange={setFilters} />
