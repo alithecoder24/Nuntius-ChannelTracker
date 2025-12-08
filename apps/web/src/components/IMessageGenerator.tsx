@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X } from 'lucide-react';
 import { createVideoJob, getVideoJobs, subscribeToVideoJobs, type VideoJob } from '@/lib/supabase';
 
 interface Person {
   id: string;
   name: string;
   voice: string;
+  image: string | null; // base64 encoded image
 }
 
 interface IMessageGeneratorProps {
@@ -20,7 +21,7 @@ const LANGUAGES = [
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
 ];
 
-// ElevenLabs voice IDs - these are real voice IDs from ElevenLabs
+// ElevenLabs voice IDs
 const VOICES = [
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
   { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
@@ -40,12 +41,16 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState('en');
   const [people, setPeople] = useState<Person[]>([
-    { id: 'a', name: '', voice: '' },
-    { id: 'b', name: '', voice: '' },
+    { id: 'a', name: '', voice: '', image: null },
+    { id: 'b', name: '', voice: '', image: null },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load existing jobs on mount
   useEffect(() => {
@@ -82,7 +87,7 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   const addPerson = () => {
     if (people.length >= 10) return;
     const nextId = String.fromCharCode(97 + people.length);
-    setPeople([...people, { id: nextId, name: '', voice: '' }]);
+    setPeople([...people, { id: nextId, name: '', voice: '', image: null }]);
   };
 
   const removePerson = (id: string) => {
@@ -90,8 +95,53 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     setPeople(people.filter(p => p.id !== id));
   };
 
-  const updatePerson = (id: string, field: 'name' | 'voice', value: string) => {
+  const updatePerson = (id: string, field: keyof Person, value: string | null) => {
     setPeople(people.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const handleImageUpload = (personId: string, file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      updatePerson(personId, 'image', reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleScriptFileUpload = (file: File) => {
+    if (!file.name.endsWith('.txt')) {
+      setError('Please upload a .txt file');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setScript(reader.result as string);
+      setUploadedFileName(file.name);
+      setError(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleScriptFileUpload(file);
+    }
   };
 
   const handleSubmit = async () => {
@@ -114,12 +164,16 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
         script: script,
         dark_mode: darkMode,
         language: language,
-        people: people.filter(p => p.name && p.voice),
+        people: people.filter(p => p.name && p.voice).map(p => ({
+          id: p.id,
+          name: p.name,
+          voice: p.voice,
+          image: p.image,
+        })),
       });
       
       setJobs([newJob, ...jobs]);
       setProjectName('');
-      // Keep script for variations
     } catch (err) {
       console.error('Error creating job:', err);
       setError('Failed to create job. Make sure the video_jobs table exists in Supabase.');
@@ -170,14 +224,30 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     <div className="w-full space-y-6">
       {/* Header */}
       <div className="glass-card p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#22c55e]/20 to-[#4ade80]/20 flex items-center justify-center border border-[rgba(34,197,94,0.3)] shadow-[0_0_20px_rgba(34,197,94,0.15)]">
-            <MessageSquare className="w-7 h-7 text-[#4ade80]" />
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#22c55e]/20 to-[#4ade80]/20 flex items-center justify-center border border-[rgba(34,197,94,0.3)] shadow-[0_0_20px_rgba(34,197,94,0.15)]">
+              <MessageSquare className="w-7 h-7 text-[#4ade80]" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[#f8fafc]">Chat Video Generator</h1>
+              <p className="text-[#71717a] text-sm">Generate realistic iMessage conversation videos with AI voices</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[#f8fafc]">iMessage Generator</h1>
-            <p className="text-[#71717a] text-sm">Generate realistic iMessage conversation videos with AI voices</p>
-          </div>
+          
+          {/* Generate Button - Top Right */}
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !projectName.trim() || !script.trim()}
+            className="px-6 py-3 rounded-xl font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all inline-flex items-center gap-2"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <MessageSquare className="w-5 h-5" />
+            )}
+            Generate Video
+          </button>
         </div>
 
         {error && (
@@ -186,11 +256,12 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
           </div>
         )}
 
-        {/* Form */}
-        <div className="space-y-6">
-          {/* Top Row: Project Name + Settings */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Left Column - Settings & Script */}
+          <div className="space-y-5">
+            {/* Project Name */}
+            <div>
               <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Project Name</label>
               <input
                 type="text"
@@ -201,81 +272,188 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
                 className="w-full px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] transition-colors"
               />
             </div>
-            
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Theme</label>
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`w-full px-4 py-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${
-                    darkMode
-                      ? 'bg-[rgba(30,30,40,0.8)] border-[rgba(100,100,120,0.4)] text-[#a1a1aa]'
-                      : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.2)] text-[#f8fafc]'
-                  }`}
-                >
-                  {darkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                  {darkMode ? 'Dark' : 'Light'}
-                </button>
-              </div>
 
+            {/* Language & Dark Mode Row */}
+            <div className="flex items-end gap-4">
+              {/* Language Flags */}
               <div className="flex-1">
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Language</label>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] focus:outline-none focus:border-[rgba(34,197,94,0.4)] transition-colors appearance-none cursor-pointer"
-                >
+                <div className="flex gap-2">
                   {LANGUAGES.map(lang => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.flag} {lang.name}
-                    </option>
+                    <button
+                      key={lang.code}
+                      onClick={() => setLanguage(lang.code)}
+                      className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 ${
+                        language === lang.code
+                          ? 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-[#4ade80]'
+                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                      }`}
+                    >
+                      <span className="text-xl">{lang.flag}</span>
+                      <span className="text-sm font-medium">{lang.name}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
+
+              {/* Dark Mode Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Darkmode</label>
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className={`w-16 h-10 rounded-full p-1 transition-all ${
+                    darkMode
+                      ? 'bg-[rgba(34,197,94,0.3)]'
+                      : 'bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)]'
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      darkMode
+                        ? 'translate-x-6 bg-[#4ade80]'
+                        : 'translate-x-0 bg-[#52525b]'
+                    }`}
+                  >
+                    {darkMode ? <Moon className="w-4 h-4 text-[#0f0f0f]" /> : <Sun className="w-4 h-4 text-[#a1a1aa]" />}
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Script Upload Area */}
+            <div>
+              <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Script</label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative mb-3 p-4 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                  isDragging
+                    ? 'border-[#4ade80] bg-[rgba(34,197,94,0.1)]'
+                    : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)]'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleScriptFileUpload(file);
+                  }}
+                />
+                <div className="flex flex-col items-center gap-2 py-2">
+                  <Upload className={`w-8 h-8 ${isDragging ? 'text-[#4ade80]' : 'text-[#60a5fa]'}`} />
+                  <p className="text-[#a1a1aa] text-sm">
+                    {uploadedFileName ? (
+                      <span className="text-[#4ade80] flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        {uploadedFileName}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedFileName(null);
+                            setScript('');
+                          }}
+                          className="text-[#f87171] hover:text-[#ef4444]"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </span>
+                    ) : (
+                      <>Drag and drop <span className="text-[#f8fafc]">.txt file</span> or click to browse</>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Script Textarea */}
+              <textarea
+                value={script}
+                onChange={(e) => {
+                  setScript(e.target.value);
+                  setUploadedFileName(null);
+                }}
+                placeholder={`A: Hey, what's up?
+B: Not much, just chilling
+x-A: This is from sender (blue bubble)
+-$-
+text: typing indicator...
+-$-
+B: Cool!`}
+                className="w-full h-48 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-none font-mono text-sm transition-colors"
+              />
             </div>
           </div>
 
-          {/* People/Voices Section */}
+          {/* Right Column - People Cards */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-medium text-[#a1a1aa]">People & Voices</label>
-              {people.length < 10 && (
-                <button
-                  onClick={addPerson}
-                  className="text-xs text-[#4ade80] hover:text-[#22c55e] flex items-center gap-1 transition-colors"
-                >
-                  <Plus className="w-3 h-3" />
-                  Add Person
-                </button>
-              )}
+              <span className="text-xs text-[#52525b]">{people.length}/10</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            
+            <div className="grid grid-cols-2 gap-3">
               {people.map((person) => (
                 <div
                   key={person.id}
-                  className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] space-y-2"
+                  className="p-4 rounded-xl bg-[rgba(15,12,25,0.5)] border border-[rgba(168,85,247,0.15)] space-y-3 relative group"
                 >
+                  {/* Person Label */}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#4ade80] uppercase">
-                      Person {person.id.toUpperCase()}
+                    <span className="text-lg font-bold text-[#f8fafc]">
+                      {person.id.toUpperCase()}
                     </span>
                     {people.length > 2 && (
                       <button
                         onClick={() => removePerson(person.id)}
-                        className="text-[#71717a] hover:text-[#f87171] transition-colors"
+                        className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-[#f87171] transition-all"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    value={person.name}
-                    onChange={(e) => updatePerson(person.id, 'name', e.target.value)}
-                    placeholder="Name"
-                    maxLength={25}
-                    className="w-full px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.1)] text-[#f8fafc] text-sm placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.3)]"
-                  />
+
+                  {/* Profile Picture & Name Row */}
+                  <div className="flex gap-3">
+                    {/* Profile Picture Upload */}
+                    <label className="cursor-pointer flex-shrink-0">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(person.id, file);
+                        }}
+                      />
+                      <div className={`w-12 h-12 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all ${
+                        person.image
+                          ? 'border-[#4ade80]'
+                          : 'border-[rgba(96,165,250,0.4)] hover:border-[#60a5fa]'
+                      }`}>
+                        {person.image ? (
+                          <img src={person.image} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-5 h-5 text-[#60a5fa]" />
+                        )}
+                      </div>
+                    </label>
+
+                    {/* Name Input */}
+                    <input
+                      type="text"
+                      value={person.name}
+                      onChange={(e) => updatePerson(person.id, 'name', e.target.value)}
+                      placeholder="Name"
+                      maxLength={25}
+                      className="flex-1 px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.1)] text-[#f8fafc] text-sm placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.3)]"
+                    />
+                  </div>
+
+                  {/* Voice Dropdown */}
                   <select
                     value={person.voice}
                     onChange={(e) => updatePerson(person.id, 'voice', e.target.value)}
@@ -288,53 +466,24 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
                   </select>
                 </div>
               ))}
-            </div>
-          </div>
 
-          {/* Script */}
-          <div>
-            <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Conversation Script</label>
-            <textarea
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              placeholder={`Enter your conversation script...
-
-Format (use the person names you set above):
-A: Hey, what's up?
-B: Not much, just chilling
-x-A: This message is from the sender (blue bubble)
-A: This is from the receiver (gray bubble)
-
-Special features:
-- x- prefix = sender (blue/green bubble)
-- undelivered- prefix = undelivered message
-- [!image.png!] = insert image
-- ##text## = censor/blur text
-- |b|sound| = play sound before
-- |a|sound| = play sound after`}
-              className="w-full h-56 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-none font-mono text-sm transition-colors"
-            />
-          </div>
-
-          {/* Submit */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !projectName.trim() || !script.trim()}
-              className="btn btn-primary px-8 py-3.5 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] border-0 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <MessageSquare className="w-4 h-4" />
+              {/* Add Person Card */}
+              {people.length < 10 && (
+                <button
+                  onClick={addPerson}
+                  className="p-4 rounded-xl border-2 border-dashed border-[rgba(168,85,247,0.2)] hover:border-[rgba(34,197,94,0.4)] hover:bg-[rgba(34,197,94,0.05)] transition-all flex items-center justify-center min-h-[140px]"
+                >
+                  <Plus className="w-8 h-8 text-[#52525b]" />
+                </button>
               )}
-              Generate Video
-            </button>
-            <div className="flex items-center gap-2 text-[#52525b] text-sm">
-              <div className="w-2 h-2 rounded-full bg-[#fbbf24] animate-pulse" />
-              <span>Worker must be running on your PC</span>
             </div>
           </div>
+        </div>
+
+        {/* Worker Status */}
+        <div className="mt-6 flex items-center gap-2 text-[#52525b] text-sm">
+          <div className="w-2 h-2 rounded-full bg-[#fbbf24] animate-pulse" />
+          <span>Worker must be running on your PC</span>
         </div>
       </div>
 
@@ -391,36 +540,44 @@ Special features:
         )}
       </div>
 
-      {/* Help Section */}
-      <div className="glass-card p-6">
-        <h2 className="text-lg font-semibold text-[#f8fafc] mb-4">Script Syntax Guide</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#4ade80]">A: Hello</code>
-            <p className="text-[#71717a] mt-1">Person A sends a message (receiver/gray)</p>
-          </div>
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#60a5fa]">x-A: Hello</code>
-            <p className="text-[#71717a] mt-1">Person A as sender (blue bubble)</p>
-          </div>
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#f87171]">undelivered-A: Failed</code>
-            <p className="text-[#71717a] mt-1">Undelivered message (green + error)</p>
-          </div>
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#fbbf24]">[!photo.png!]</code>
-            <p className="text-[#71717a] mt-1">Insert an image in chat</p>
-          </div>
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#c084fc]">##secret##</code>
-            <p className="text-[#71717a] mt-1">Blur/censor text</p>
-          </div>
-          <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-            <code className="text-[#71717a]">-$-</code>
-            <p className="text-[#71717a] mt-1">New image/segment separator</p>
+      {/* Help Section - Collapsible */}
+      <details className="glass-card">
+        <summary className="p-6 cursor-pointer text-lg font-semibold text-[#f8fafc] hover:text-[#4ade80] transition-colors">
+          Script Syntax Guide
+        </summary>
+        <div className="px-6 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#4ade80]">A: Hello</code>
+              <p className="text-[#71717a] mt-1">Person A sends a message (receiver/gray)</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#60a5fa]">x-A: Hello</code>
+              <p className="text-[#71717a] mt-1">Person A as sender (blue bubble)</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#f87171]">undelivered-A: Failed</code>
+              <p className="text-[#71717a] mt-1">Undelivered message (green + error)</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#fbbf24]">[!photo.png!]</code>
+              <p className="text-[#71717a] mt-1">Insert an image in chat</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#c084fc]">##secret##</code>
+              <p className="text-[#71717a] mt-1">Blur/censor text</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#71717a]">-$-</code>
+              <p className="text-[#71717a] mt-1">New image/segment separator</p>
+            </div>
+            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
+              <code className="text-[#71717a]">text: typing...</code>
+              <p className="text-[#71717a] mt-1">Show typing indicator text</p>
+            </div>
           </div>
         </div>
-      </div>
+      </details>
     </div>
   );
 }
