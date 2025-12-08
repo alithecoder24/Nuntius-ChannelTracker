@@ -17,8 +17,6 @@ interface Profile {
   channel_name: string;
   profile_pic: string | null;
   font: string;
-  voice: string;
-  voice_model: string;
   video_length: number;
   music: string;
   background_video: string;
@@ -32,6 +30,10 @@ interface PravusGeneratorProps {
   userId: string;
 }
 
+// Voice Provider Types
+type VoiceProvider = 'elevenlabs' | 'ai33' | 'genpro';
+type SubProvider = 'elevenlabs' | 'minimax';
+
 // Constants
 const FONTS = [
   { id: 'montserrat', name: 'Montserrat' },
@@ -40,7 +42,19 @@ const FONTS = [
   { id: 'grover', name: 'Grover' },
 ];
 
-const VOICES = [
+const VOICE_PROVIDERS = [
+  { id: 'elevenlabs', name: 'ElevenLabs' },
+  { id: 'ai33', name: 'AI33' },
+  { id: 'genpro', name: 'GenPro (Coming Soon)' },
+];
+
+const SUB_PROVIDERS = [
+  { id: 'elevenlabs', name: 'ElevenLabs' },
+  { id: 'minimax', name: 'MiniMax' },
+];
+
+// ElevenLabs voices (direct)
+const ELEVENLABS_VOICES = [
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
   { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
@@ -52,10 +66,27 @@ const VOICES = [
   { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
 ];
 
-const VOICE_MODELS = [
+// AI33-ElevenLabs voices (custom)
+const AI33_ELEVENLABS_VOICES = [
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Ali_Custom_EL' },
+];
+
+// AI33-MiniMax voices (placeholder)
+const AI33_MINIMAX_VOICES = [
+  { id: 'minimax_voice_1', name: 'MiniMax Voice 1' },
+  { id: 'minimax_voice_2', name: 'MiniMax Voice 2' },
+];
+
+// ElevenLabs models
+const ELEVENLABS_MODELS = [
   { id: 'eleven_turbo_v2_5', name: 'Eleven Turbo v2.5' },
   { id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2' },
   { id: 'eleven_monolingual_v1', name: 'Eleven Monolingual v1' },
+];
+
+// MiniMax models (placeholder)
+const MINIMAX_MODELS = [
+  { id: 'minimax_default', name: 'MiniMax Default' },
 ];
 
 const BADGES = [
@@ -128,12 +159,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   
-  // Current profile/form state
+  // Current profile/form state (saved to profile)
   const [channelName, setChannelName] = useState('');
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const [font, setFont] = useState('montserrat');
-  const [voice, setVoice] = useState('');
-  const [voiceModel, setVoiceModel] = useState('eleven_turbo_v2_5');
   const [videoLength, setVideoLength] = useState(179);
   const [music, setMusic] = useState('none');
   const [backgroundVideo, setBackgroundVideo] = useState('');
@@ -141,6 +170,12 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const [highlightColor, setHighlightColor] = useState('#ffff00');
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [badgeStyle, setBadgeStyle] = useState<'blue' | 'gold'>('blue');
+  
+  // Voice settings (NOT saved to profile - set per job)
+  const [voiceProvider, setVoiceProvider] = useState<VoiceProvider>('elevenlabs');
+  const [subProvider, setSubProvider] = useState<SubProvider>('elevenlabs');
+  const [voiceModel, setVoiceModel] = useState('eleven_turbo_v2_5');
+  const [voice, setVoice] = useState('');
   
   // Script upload
   const [scriptFiles, setScriptFiles] = useState<File[]>([]);
@@ -166,6 +201,41 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     { id: 'Mix_10', name: 'FuckOddly', emoji: '🖕' },
     { id: 'Mix_11', name: 'Minecraft', emoji: '🎮' },
   ]);
+
+  // Get available voices based on provider selection
+  const getAvailableVoices = () => {
+    if (voiceProvider === 'elevenlabs') {
+      return ELEVENLABS_VOICES;
+    } else if (voiceProvider === 'ai33') {
+      return subProvider === 'elevenlabs' ? AI33_ELEVENLABS_VOICES : AI33_MINIMAX_VOICES;
+    } else if (voiceProvider === 'genpro') {
+      // Placeholder - not implemented yet
+      return subProvider === 'elevenlabs' ? ELEVENLABS_VOICES : AI33_MINIMAX_VOICES;
+    }
+    return ELEVENLABS_VOICES;
+  };
+
+  // Get available models based on provider selection
+  const getAvailableModels = () => {
+    if (voiceProvider === 'elevenlabs') {
+      return ELEVENLABS_MODELS;
+    } else if (voiceProvider === 'ai33' || voiceProvider === 'genpro') {
+      return subProvider === 'elevenlabs' ? ELEVENLABS_MODELS : MINIMAX_MODELS;
+    }
+    return ELEVENLABS_MODELS;
+  };
+
+  // Reset voice/model when provider changes
+  useEffect(() => {
+    const voices = getAvailableVoices();
+    const models = getAvailableModels();
+    if (voices.length > 0 && !voices.find(v => v.id === voice)) {
+      setVoice(voices[0].id);
+    }
+    if (models.length > 0 && !models.find(m => m.id === voiceModel)) {
+      setVoiceModel(models[0].id);
+    }
+  }, [voiceProvider, subProvider]);
 
   // Load profiles from localStorage (in real app, this would be Supabase)
   useEffect(() => {
@@ -261,8 +331,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     setChannelName(profile.channel_name);
     setProfilePic(profile.profile_pic);
     setFont(profile.font);
-    setVoice(profile.voice);
-    setVoiceModel(profile.voice_model);
     setVideoLength(profile.video_length);
     setMusic(profile.music);
     setBackgroundVideo(profile.background_video);
@@ -270,6 +338,7 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     setHighlightColor(profile.highlight_color);
     setAnimationsEnabled(profile.animations_enabled);
     setBadgeStyle(profile.badge_style);
+    // Note: voice settings are NOT loaded from profile - they're set per job
   };
 
   // Handle profile selection
@@ -295,8 +364,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
       channel_name: channelName,
       profile_pic: profilePic,
       font,
-      voice,
-      voice_model: voiceModel,
       video_length: videoLength,
       music,
       background_video: backgroundVideo,
@@ -324,8 +391,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             channel_name: channelName,
             profile_pic: profilePic,
             font,
-            voice,
-            voice_model: voiceModel,
             video_length: videoLength,
             music,
             background_video: backgroundVideo,
@@ -405,8 +470,12 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
         channel_name: channelName,
         profile_pic: profilePic,
         font,
+        // Voice settings
+        voice_provider: voiceProvider,
+        sub_provider: voiceProvider !== 'elevenlabs' ? subProvider : null,
         voice,
         voice_model: voiceModel,
+        // Other settings
         video_length: videoLength,
         music,
         background_video: backgroundVideo,
@@ -598,27 +667,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                   </div>
                 </div>
 
-                {/* Voice & Model */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[#71717a] mb-1">Voice</label>
-                    <StyledSelect
-                      value={voice}
-                      onChange={setVoice}
-                      options={VOICES}
-                      placeholder="Select voice..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#71717a] mb-1">Voice Model</label>
-                    <StyledSelect
-                      value={voiceModel}
-                      onChange={setVoiceModel}
-                      options={VOICE_MODELS}
-                    />
-                  </div>
-                </div>
-
                 {/* Font & Length */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -749,6 +797,82 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             </div>
           </div>
         )}
+
+        {/* Voice Settings (separate from profile) */}
+        <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
+          <h3 className="text-lg font-semibold text-[#f8fafc] mb-4">Voice Settings</h3>
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Voice Provider */}
+            <div>
+              <label className="block text-xs font-medium text-[#71717a] mb-1">Provider</label>
+              <div className="flex flex-col gap-1">
+                {VOICE_PROVIDERS.map(provider => (
+                  <button
+                    key={provider.id}
+                    onClick={() => setVoiceProvider(provider.id as VoiceProvider)}
+                    disabled={provider.id === 'genpro'}
+                    className={`px-3 py-2 rounded-lg border text-xs font-medium text-left transition-all ${
+                      voiceProvider === provider.id
+                        ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)] text-[#fb923c]'
+                        : provider.id === 'genpro'
+                          ? 'bg-[rgba(15,12,25,0.3)] border-[rgba(168,85,247,0.1)] text-[#52525b] cursor-not-allowed'
+                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                    }`}
+                  >
+                    {provider.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sub-Provider (only for AI33 and GenPro) */}
+            {(voiceProvider === 'ai33' || voiceProvider === 'genpro') && (
+              <div>
+                <label className="block text-xs font-medium text-[#71717a] mb-1">
+                  {voiceProvider === 'ai33' ? 'AI33 via' : 'GenPro via'}
+                </label>
+                <div className="flex flex-col gap-1">
+                  {SUB_PROVIDERS.map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={() => setSubProvider(sub.id as SubProvider)}
+                      className={`px-3 py-2 rounded-lg border text-xs font-medium text-left transition-all ${
+                        subProvider === sub.id
+                          ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)] text-[#fb923c]'
+                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                      }`}
+                    >
+                      {sub.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Voice Model */}
+            <div>
+              <label className="block text-xs font-medium text-[#71717a] mb-1">Voice Model</label>
+              <StyledSelect
+                value={voiceModel}
+                onChange={setVoiceModel}
+                options={getAvailableModels()}
+                placeholder="Select model..."
+              />
+            </div>
+
+            {/* Voice */}
+            <div>
+              <label className="block text-xs font-medium text-[#71717a] mb-1">Voice</label>
+              <StyledSelect
+                value={voice}
+                onChange={setVoice}
+                options={getAvailableVoices()}
+                placeholder="Select voice..."
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Script Upload */}
         <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
