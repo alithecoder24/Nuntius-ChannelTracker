@@ -13,7 +13,7 @@ import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
 import TagManagementModal from '@/components/TagManagementModal';
 import TeamManagementModal from '@/components/TeamManagementModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, ArrowUpDown, Tag, Users, ShieldX, Flame } from 'lucide-react';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, Tag, Users, ShieldX, Flame } from 'lucide-react';
 
 interface Profile { id: string; name: string; visibility: 'private' | 'team'; createdBy: string; }
 
@@ -44,7 +44,7 @@ const mockVideos = [{
   publishedAt: '2024-01-15',
 }];
 
-type SortOption = 'name' | 'subscribers' | 'views28d' | 'views1d' | 'newest';
+type SortOption = 'name' | 'views28d' | 'views1d' | 'newest';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -61,7 +61,7 @@ export default function Home() {
   const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [sortBy, setSortBy] = useState<SortOption>('views1d');
-  const [minViews1d, setMinViews1d] = useState<number>(0);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [userTags, setUserTags] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     timeWindow: '48h', videoAmount: '10', minViews: '', maxViews: '', minLength: '', maxLength: '', searchQuery: '',
@@ -371,24 +371,46 @@ export default function Home() {
   const openLogin = () => { setAuthMode('login'); setIsAuthModalOpen(true); };
   const openSignup = () => { setAuthMode('signup'); setIsAuthModalOpen(true); };
 
-  // Filter by 24h views
-  const filteredChannels = channels.filter(ch => (ch.views1d ?? 0) >= minViews1d);
+  // Helper to parse formatted numbers like "1.2K", "3.5M" into raw numbers
+  const parseFormattedNumber = (str: string): number => {
+    if (!str) return 0;
+    const cleaned = str.replace(/[^0-9.KMBkmb]/g, '');
+    const match = cleaned.match(/^([\d.]+)([KMBkmb]?)$/);
+    if (!match) return parseFloat(str.replace(/[^0-9.]/g, '')) || 0;
+    const num = parseFloat(match[1]);
+    const suffix = match[2].toUpperCase();
+    if (suffix === 'K') return num * 1_000;
+    if (suffix === 'M') return num * 1_000_000;
+    if (suffix === 'B') return num * 1_000_000_000;
+    return num;
+  };
 
   // Sort channels
-  const sortedChannels = [...filteredChannels].sort((a, b) => {
+  const sortedChannels = [...channels].sort((a, b) => {
+    let comparison = 0;
     switch (sortBy) {
       case 'name':
-        return a.name.localeCompare(b.name);
-      case 'subscribers':
-        return parseFloat(b.subscribers.replace(/[^0-9.]/g, '')) - parseFloat(a.subscribers.replace(/[^0-9.]/g, ''));
+        comparison = a.name.localeCompare(b.name);
+        break;
       case 'views28d':
-        return parseFloat(b.views28d.replace(/[^0-9.]/g, '')) - parseFloat(a.views28d.replace(/[^0-9.]/g, ''));
+        comparison = parseFormattedNumber(b.views28d) - parseFormattedNumber(a.views28d);
+        break;
       case 'views1d':
-        return (b.views1d ?? 0) - (a.views1d ?? 0);
+        comparison = (b.views1d ?? 0) - (a.views1d ?? 0);
+        break;
       case 'newest':
       default:
-        return 0; // Keep original order (newest first from DB)
+        comparison = 0; // Keep original order (newest first from DB)
+        break;
     }
+    // Apply direction (for name and newest, flip if desc/asc respectively)
+    if (sortBy === 'name') {
+      return sortDirection === 'asc' ? comparison : -comparison;
+    }
+    if (sortBy === 'newest') {
+      return sortDirection === 'desc' ? comparison : -comparison; // desc = newest first, asc = oldest first
+    }
+    return comparison; // views always desc (highest first)
   });
 
   // Compute ranking by 24h views for highlighting
@@ -520,36 +542,70 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Channels</h2>
-                    <span className="text-[12px] text-[#71717a]">Sorted by 24h views (top 5 glow)</span>
+                    <span className="text-[12px] text-[#71717a]">Top 3 highlighted by 24h performance</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* Min 24h views filter */}
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={minViews1d}
-                        onChange={(e) => setMinViews1d(Math.max(0, Number(e.target.value) || 0))}
-                        placeholder="Min 24h views"
-                        className="pl-10 pr-3 py-2.5 rounded-2xl text-[13px] font-medium text-[#a1a1aa] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] focus:outline-none focus:border-[rgba(168,85,247,0.4)] transition-colors w-40"
-                      />
-                      <Flame className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#fb923c]" />
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {/* Sort Buttons - Glassmorphism Style */}
+                    <button
+                      onClick={() => setSortBy('views1d')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-medium backdrop-blur-xl border transition-all ${
+                        sortBy === 'views1d'
+                          ? 'bg-[rgba(251,146,60,0.15)] border-[rgba(251,146,60,0.4)] text-[#fb923c] shadow-[0_0_16px_rgba(251,146,60,0.2)]'
+                          : 'bg-[rgba(15,12,25,0.6)] border-[rgba(168,85,247,0.15)] text-[#a1a1aa] hover:border-[rgba(251,146,60,0.3)] hover:text-[#fb923c]'
+                      }`}
+                    >
+                      <Flame className="w-4 h-4" />
+                      Most Views (24h)
+                    </button>
 
-                    {/* Sort Dropdown */}
-                    <div className="relative">
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as SortOption)}
-                        className="appearance-none pl-9 pr-4 py-2.5 rounded-2xl text-[13px] font-medium text-[#a1a1aa] bg-[rgba(15,12,25,0.6)] backdrop-blur-xl border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.3)] focus:outline-none focus:border-[rgba(168,85,247,0.4)] cursor-pointer transition-colors"
-                      >
-                        <option value="newest">Newest</option>
-                        <option value="name">Name A-Z</option>
-                        <option value="subscribers">Most Subscribers</option>
-                        <option value="views28d">Most Views (28d)</option>
-                        <option value="views1d">Most Views (24h)</option>
-                      </select>
-                      <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717a] pointer-events-none" />
-                    </div>
+                    <button
+                      onClick={() => setSortBy('views28d')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-medium backdrop-blur-xl border transition-all ${
+                        sortBy === 'views28d'
+                          ? 'bg-[rgba(168,85,247,0.15)] border-[rgba(168,85,247,0.4)] text-[#c084fc]'
+                          : 'bg-[rgba(15,12,25,0.6)] border-[rgba(168,85,247,0.15)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.3)] hover:text-[#c084fc]'
+                      }`}
+                    >
+                      Most Views (28d)
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (sortBy === 'newest') {
+                          setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                        } else {
+                          setSortBy('newest');
+                          setSortDirection('desc');
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-medium backdrop-blur-xl border transition-all ${
+                        sortBy === 'newest'
+                          ? 'bg-[rgba(168,85,247,0.15)] border-[rgba(168,85,247,0.4)] text-[#c084fc]'
+                          : 'bg-[rgba(15,12,25,0.6)] border-[rgba(168,85,247,0.15)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.3)] hover:text-[#c084fc]'
+                      }`}
+                    >
+                      {sortBy === 'newest' && sortDirection === 'asc' ? 'Oldest' : 'Newest'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (sortBy === 'name') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('name');
+                          setSortDirection('asc');
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-medium backdrop-blur-xl border transition-all ${
+                        sortBy === 'name'
+                          ? 'bg-[rgba(168,85,247,0.15)] border-[rgba(168,85,247,0.4)] text-[#c084fc]'
+                          : 'bg-[rgba(15,12,25,0.6)] border-[rgba(168,85,247,0.15)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.3)] hover:text-[#c084fc]'
+                      }`}
+                    >
+                      {sortBy === 'name' && sortDirection === 'desc' ? 'Z-A' : 'A-Z'}
+                    </button>
+
+                    <div className="w-px h-6 bg-[rgba(168,85,247,0.2)] mx-1" />
 
                     {/* Manage Tags Button */}
                     <button 

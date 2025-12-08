@@ -120,14 +120,19 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 fade-in">
         {channels.map((channel, index) => {
           const rank = channelHighlights?.[channel.id];
-          const glowClass = rank
-            ? rank <= 3
-              ? 'border-[rgba(251,146,60,0.45)] shadow-[0_0_22px_rgba(251,146,60,0.35)]'
-              : rank <= 5
-                ? 'border-[rgba(251,191,36,0.35)] shadow-[0_0_18px_rgba(251,191,36,0.22)]'
-                : ''
+          const isTop3 = rank && rank <= 3;
+          
+          // Glow intensity based on rank (Top 3 only)
+          const glowClass = isTop3
+            ? rank === 1
+              ? 'border-[rgba(251,146,60,0.55)] shadow-[0_0_28px_rgba(251,146,60,0.45)] bg-[rgba(251,146,60,0.04)]'
+              : rank === 2
+                ? 'border-[rgba(251,146,60,0.45)] shadow-[0_0_22px_rgba(251,146,60,0.35)] bg-[rgba(251,146,60,0.03)]'
+                : 'border-[rgba(251,146,60,0.35)] shadow-[0_0_16px_rgba(251,146,60,0.25)] bg-[rgba(251,146,60,0.02)]'
             : '';
-          const heatLabel = rank ? (rank <= 3 ? 'Hot' : rank <= 5 ? 'Warm' : '') : '';
+          
+          // Number of flames based on rank (3 for #1, 2 for #2, 1 for #3)
+          const flameCount = isTop3 ? (4 - rank) : 0;
 
           return (
             <div
@@ -135,17 +140,25 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
               className={`glass-panel rounded-xl p-4 card-hover fade-in stagger-${(index % 8) + 1} cursor-pointer relative group border ${glowClass}`}
               onClick={() => openStats(channel)}
             >
-              {(channel.views1d ?? 0) > 0 && (
-                <div className="absolute -left-1 -top-2 z-10 flex items-center gap-2">
-                  <div className={`px-2 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 ${rank && rank <= 3 ? 'bg-[rgba(251,146,60,0.18)] text-[#fb923c] border border-[rgba(251,146,60,0.35)]' : rank && rank <= 5 ? 'bg-[rgba(251,191,36,0.16)] text-[#fbbf24] border border-[rgba(251,191,36,0.3)]' : 'bg-[rgba(168,85,247,0.12)] text-[#c084fc] border border-[rgba(168,85,247,0.25)]'}`}>
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>{formatNumber(channel.views1d)} views / 24h</span>
+              {/* Top 3 flame badge */}
+              {isTop3 && (
+                <div className="absolute -left-1 -top-2 z-10">
+                  <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 bg-[rgba(251,146,60,0.2)] text-[#fb923c] border border-[rgba(251,146,60,0.4)] shadow-[0_0_12px_rgba(251,146,60,0.3)]">
+                    {Array.from({ length: flameCount }).map((_, i) => (
+                      <Flame key={i} className="w-3.5 h-3.5" />
+                    ))}
+                    <span className="ml-0.5">{formatNumber(channel.views1d)} / 24h</span>
                   </div>
-                  {heatLabel && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#f8fafc] bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.08)]">
-                      {heatLabel}
-                    </span>
-                  )}
+                </div>
+              )}
+              
+              {/* Non-top-3 channels with 24h views still show a subtle badge */}
+              {!isTop3 && (channel.views1d ?? 0) > 0 && (
+                <div className="absolute -left-1 -top-2 z-10">
+                  <div className="px-2 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 bg-[rgba(168,85,247,0.12)] text-[#c084fc] border border-[rgba(168,85,247,0.25)]">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>{formatNumber(channel.views1d)} / 24h</span>
+                  </div>
                 </div>
               )}
 
