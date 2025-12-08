@@ -1,14 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X } from 'lucide-react';
-import { createVideoJob, getVideoJobs, subscribeToVideoJobs, type VideoJob } from '@/lib/supabase';
+import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X, Image, Wifi, WifiOff } from 'lucide-react';
+import { createVideoJob, getVideoJobs, subscribeToVideoJobs, getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat } from '@/lib/supabase';
 
 interface Person {
   id: string;
   name: string;
   voice: string;
-  image: string | null; // base64 encoded image
+  image: string | null;
+}
+
+interface UploadedImage {
+  name: string;
+  data: string; // base64
 }
 
 interface IMessageGeneratorProps {
@@ -21,7 +26,6 @@ const LANGUAGES = [
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
 ];
 
-// ElevenLabs voice IDs
 const VOICES = [
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
   { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
@@ -47,12 +51,22 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Script upload
+  const [isDraggingScript, setIsDraggingScript] = useState(false);
+  const [uploadedScriptName, setUploadedScriptName] = useState<string | null>(null);
+  const scriptInputRef = useRef<HTMLInputElement>(null);
+  
+  // Images upload
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const imagesInputRef = useRef<HTMLInputElement>(null);
+  
+  // Worker status
+  const [workerStatus, setWorkerStatus] = useState<'online' | 'busy' | 'offline'>('offline');
+  const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(null);
 
-  // Load existing jobs on mount
+  // Load jobs and subscribe to updates
   useEffect(() => {
     let mounted = true;
     
@@ -67,7 +81,6 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     
     loadJobs();
     
-    // Subscribe to real-time updates
     const subscription = subscribeToVideoJobs(userId, (updatedJob) => {
       setJobs(prev => {
         const exists = prev.find(j => j.id === updatedJob.id);
@@ -84,6 +97,48 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     };
   }, [userId]);
 
+  // Subscribe to worker status
+  useEffect(() => {
+    let mounted = true;
+    
+    const checkWorkerStatus = (heartbeat: WorkerHeartbeat | null) => {
+      if (!mounted) return;
+      
+      if (!heartbeat) {
+        setWorkerStatus('offline');
+        setLastHeartbeat(null);
+        return;
+      }
+      
+      const lastBeat = new Date(heartbeat.last_heartbeat);
+      const now = new Date();
+      const diffSeconds = (now.getTime() - lastBeat.getTime()) / 1000;
+      
+      setLastHeartbeat(lastBeat);
+      
+      // If last heartbeat was more than 30 seconds ago, consider offline
+      if (diffSeconds > 30) {
+        setWorkerStatus('offline');
+      } else {
+        setWorkerStatus(heartbeat.status || 'online');
+      }
+    };
+    
+    const subscription = subscribeToWorkerStatus('imessage-generator', checkWorkerStatus);
+    
+    // Also poll every 10 seconds as backup
+    const interval = setInterval(async () => {
+      const status = await getWorkerStatus('imessage-generator');
+      checkWorkerStatus(status);
+    }, 10000);
+    
+    return () => {
+      mounted = false;
+      subscription.then(sub => sub.unsubscribe());
+      clearInterval(interval);
+    };
+  }, []);
+
   const addPerson = () => {
     if (people.length >= 10) return;
     const nextId = String.fromCharCode(97 + people.length);
@@ -99,9 +154,8 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     setPeople(people.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
-  const handleImageUpload = (personId: string, file: File) => {
+  const handleProfileImageUpload = (personId: string, file: File) => {
     if (!file.type.startsWith('image/')) return;
-    
     const reader = new FileReader();
     reader.onloadend = () => {
       updatePerson(personId, 'image', reader.result as string);
@@ -114,34 +168,34 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
       setError('Please upload a .txt file');
       return;
     }
-    
     const reader = new FileReader();
     reader.onloadend = () => {
       setScript(reader.result as string);
-      setUploadedFileName(file.name);
+      setUploadedScriptName(file.name);
       setError(null);
     };
     reader.readAsText(file);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+  const handleImagesUpload = (files: FileList) => {
+    const newImages: UploadedImage[] = [];
     
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleScriptFileUpload(file);
-    }
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith('image/')) return;
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImages(prev => [...prev, {
+          name: file.name,
+          data: reader.result as string,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeUploadedImage = (name: string) => {
+    setUploadedImages(prev => prev.filter(img => img.name !== name));
   };
 
   const handleSubmit = async () => {
@@ -170,7 +224,8 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
           voice: p.voice,
           image: p.image,
         })),
-      });
+        images: uploadedImages,
+      } as any);
       
       setJobs([newJob, ...jobs]);
       setProjectName('');
@@ -184,27 +239,19 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
 
   const getStatusIcon = (status: VideoJob['status']) => {
     switch (status) {
-      case 'pending':
-        return <Clock className="w-5 h-5 text-[#fbbf24]" />;
-      case 'processing':
-        return <Loader2 className="w-5 h-5 text-[#60a5fa] animate-spin" />;
-      case 'completed':
-        return <CheckCircle2 className="w-5 h-5 text-[#4ade80]" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-[#f87171]" />;
+      case 'pending': return <Clock className="w-5 h-5 text-[#fbbf24]" />;
+      case 'processing': return <Loader2 className="w-5 h-5 text-[#60a5fa] animate-spin" />;
+      case 'completed': return <CheckCircle2 className="w-5 h-5 text-[#4ade80]" />;
+      case 'failed': return <XCircle className="w-5 h-5 text-[#f87171]" />;
     }
   };
 
   const getStatusText = (job: VideoJob) => {
     switch (job.status) {
-      case 'pending':
-        return 'Waiting for worker...';
-      case 'processing':
-        return `Processing${job.progress > 0 ? ` (${job.progress}%)` : '...'}`;
-      case 'completed':
-        return 'Ready to download';
-      case 'failed':
-        return job.error_message || 'Failed';
+      case 'pending': return 'Waiting for worker...';
+      case 'processing': return `Processing${job.progress > 0 ? ` (${job.progress}%)` : '...'}`;
+      case 'completed': return 'Ready to download';
+      case 'failed': return job.error_message || 'Failed';
     }
   };
 
@@ -213,12 +260,24 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
     return date.toLocaleDateString();
   };
+
+  const getWorkerStatusDisplay = () => {
+    switch (workerStatus) {
+      case 'online':
+        return { color: 'bg-[#4ade80]', text: 'Worker Online', textColor: 'text-[#4ade80]' };
+      case 'busy':
+        return { color: 'bg-[#fbbf24]', text: 'Worker Busy', textColor: 'text-[#fbbf24]' };
+      case 'offline':
+        return { color: 'bg-[#f87171]', text: 'Worker Offline', textColor: 'text-[#f87171]' };
+    }
+  };
+
+  const workerDisplay = getWorkerStatusDisplay();
 
   return (
     <div className="w-full space-y-6">
@@ -235,17 +294,13 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
             </div>
           </div>
           
-          {/* Generate Button - Top Right */}
+          {/* Generate Button */}
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !projectName.trim() || !script.trim()}
+            disabled={isSubmitting || !projectName.trim() || !script.trim() || workerStatus === 'offline'}
             className="px-6 py-3 rounded-xl font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all inline-flex items-center gap-2"
           >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <MessageSquare className="w-5 h-5" />
-            )}
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
             Generate Video
           </button>
         </div>
@@ -258,7 +313,7 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
 
         {/* Two Column Layout */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Left Column - Settings & Script */}
+          {/* Left Column */}
           <div className="space-y-5">
             {/* Project Name */}
             <div>
@@ -273,9 +328,8 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
               />
             </div>
 
-            {/* Language & Dark Mode Row */}
+            {/* Language & Dark Mode */}
             <div className="flex items-end gap-4">
-              {/* Language Flags */}
               <div className="flex-1">
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Language</label>
                 <div className="flex gap-2">
@@ -296,86 +350,125 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
                 </div>
               </div>
 
-              {/* Dark Mode Toggle */}
               <div>
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Darkmode</label>
                 <button
                   onClick={() => setDarkMode(!darkMode)}
                   className={`w-16 h-10 rounded-full p-1 transition-all ${
-                    darkMode
-                      ? 'bg-[rgba(34,197,94,0.3)]'
-                      : 'bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)]'
+                    darkMode ? 'bg-[rgba(34,197,94,0.3)]' : 'bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)]'
                   }`}
                 >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                      darkMode
-                        ? 'translate-x-6 bg-[#4ade80]'
-                        : 'translate-x-0 bg-[#52525b]'
-                    }`}
-                  >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                    darkMode ? 'translate-x-6 bg-[#4ade80]' : 'translate-x-0 bg-[#52525b]'
+                  }`}>
                     {darkMode ? <Moon className="w-4 h-4 text-[#0f0f0f]" /> : <Sun className="w-4 h-4 text-[#a1a1aa]" />}
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* Script Upload Area */}
-            <div>
-              <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Script</label>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative mb-3 p-4 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
-                  isDragging
-                    ? 'border-[#4ade80] bg-[rgba(34,197,94,0.1)]'
-                    : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)]'
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
+            {/* Script & Images Upload Row */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Script Upload */}
+              <div>
+                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Script File</label>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingScript(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setIsDraggingScript(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingScript(false);
+                    const file = e.dataTransfer.files[0];
                     if (file) handleScriptFileUpload(file);
                   }}
-                />
-                <div className="flex flex-col items-center gap-2 py-2">
-                  <Upload className={`w-8 h-8 ${isDragging ? 'text-[#4ade80]' : 'text-[#60a5fa]'}`} />
-                  <p className="text-[#a1a1aa] text-sm">
-                    {uploadedFileName ? (
-                      <span className="text-[#4ade80] flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        {uploadedFileName}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUploadedFileName(null);
-                            setScript('');
-                          }}
-                          className="text-[#f87171] hover:text-[#ef4444]"
-                        >
-                          <X className="w-4 h-4" />
+                  onClick={() => scriptInputRef.current?.click()}
+                  className={`p-4 rounded-xl border-2 border-dashed cursor-pointer transition-all h-24 flex flex-col items-center justify-center ${
+                    isDraggingScript
+                      ? 'border-[#4ade80] bg-[rgba(34,197,94,0.1)]'
+                      : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)]'
+                  }`}
+                >
+                  <input
+                    ref={scriptInputRef}
+                    type="file"
+                    accept=".txt"
+                    className="hidden"
+                    onChange={(e) => { const file = e.target.files?.[0]; if (file) handleScriptFileUpload(file); }}
+                  />
+                  <FileText className={`w-6 h-6 mb-1 ${isDraggingScript ? 'text-[#4ade80]' : 'text-[#60a5fa]'}`} />
+                  <p className="text-xs text-[#71717a] text-center">
+                    {uploadedScriptName ? (
+                      <span className="text-[#4ade80] flex items-center gap-1">
+                        {uploadedScriptName}
+                        <button onClick={(e) => { e.stopPropagation(); setUploadedScriptName(null); setScript(''); }} className="text-[#f87171]">
+                          <X className="w-3 h-3" />
                         </button>
                       </span>
-                    ) : (
-                      <>Drag and drop <span className="text-[#f8fafc]">.txt file</span> or click to browse</>
-                    )}
+                    ) : 'Drop .txt or click'}
                   </p>
                 </div>
               </div>
 
-              {/* Script Textarea */}
+              {/* Images Upload */}
+              <div>
+                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Images</label>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingImages(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setIsDraggingImages(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingImages(false);
+                    handleImagesUpload(e.dataTransfer.files);
+                  }}
+                  onClick={() => imagesInputRef.current?.click()}
+                  className={`p-4 rounded-xl border-2 border-dashed cursor-pointer transition-all h-24 flex flex-col items-center justify-center ${
+                    isDraggingImages
+                      ? 'border-[#4ade80] bg-[rgba(34,197,94,0.1)]'
+                      : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)]'
+                  }`}
+                >
+                  <input
+                    ref={imagesInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { if (e.target.files) handleImagesUpload(e.target.files); }}
+                  />
+                  <Image className={`w-6 h-6 mb-1 ${isDraggingImages ? 'text-[#4ade80]' : 'text-[#c084fc]'}`} />
+                  <p className="text-xs text-[#71717a] text-center">
+                    {uploadedImages.length > 0 ? (
+                      <span className="text-[#c084fc]">{uploadedImages.length} image{uploadedImages.length > 1 ? 's' : ''}</span>
+                    ) : 'Drop images or click'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Uploaded Images Preview */}
+            {uploadedImages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {uploadedImages.map((img) => (
+                  <div key={img.name} className="relative group">
+                    <img src={img.data} alt={img.name} className="w-12 h-12 rounded-lg object-cover border border-[rgba(168,85,247,0.2)]" />
+                    <button
+                      onClick={() => removeUploadedImage(img.name)}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#f87171] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <p className="text-[10px] text-[#71717a] truncate max-w-12 text-center">{img.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Script Textarea */}
+            <div>
+              <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Script</label>
               <textarea
                 value={script}
-                onChange={(e) => {
-                  setScript(e.target.value);
-                  setUploadedFileName(null);
-                }}
+                onChange={(e) => { setScript(e.target.value); setUploadedScriptName(null); }}
                 placeholder={`A: Hey, what's up?
 B: Not much, just chilling
 x-A: This is from sender (blue bubble)
@@ -383,12 +476,12 @@ x-A: This is from sender (blue bubble)
 text: typing indicator...
 -$-
 B: Cool!`}
-                className="w-full h-48 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-none font-mono text-sm transition-colors"
+                className="w-full h-40 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(34,197,94,0.4)] resize-none font-mono text-sm"
               />
             </div>
           </div>
 
-          {/* Right Column - People Cards */}
+          {/* Right Column - People */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-medium text-[#a1a1aa]">People & Voices</label>
@@ -397,42 +490,26 @@ B: Cool!`}
             
             <div className="grid grid-cols-2 gap-3">
               {people.map((person) => (
-                <div
-                  key={person.id}
-                  className="p-4 rounded-xl bg-[rgba(15,12,25,0.5)] border border-[rgba(168,85,247,0.15)] space-y-3 relative group"
-                >
-                  {/* Person Label */}
+                <div key={person.id} className="p-4 rounded-xl bg-[rgba(15,12,25,0.5)] border border-[rgba(168,85,247,0.15)] space-y-3 relative group">
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-[#f8fafc]">
-                      {person.id.toUpperCase()}
-                    </span>
+                    <span className="text-lg font-bold text-[#f8fafc]">{person.id.toUpperCase()}</span>
                     {people.length > 2 && (
-                      <button
-                        onClick={() => removePerson(person.id)}
-                        className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-[#f87171] transition-all"
-                      >
+                      <button onClick={() => removePerson(person.id)} className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-[#f87171] transition-all">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
 
-                  {/* Profile Picture & Name Row */}
                   <div className="flex gap-3">
-                    {/* Profile Picture Upload */}
                     <label className="cursor-pointer flex-shrink-0">
                       <input
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(person.id, file);
-                        }}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleProfileImageUpload(person.id, file); }}
                       />
                       <div className={`w-12 h-12 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all ${
-                        person.image
-                          ? 'border-[#4ade80]'
-                          : 'border-[rgba(96,165,250,0.4)] hover:border-[#60a5fa]'
+                        person.image ? 'border-[#4ade80]' : 'border-[rgba(96,165,250,0.4)] hover:border-[#60a5fa]'
                       }`}>
                         {person.image ? (
                           <img src={person.image} alt="" className="w-full h-full object-cover" />
@@ -442,7 +519,6 @@ B: Cool!`}
                       </div>
                     </label>
 
-                    {/* Name Input */}
                     <input
                       type="text"
                       value={person.name}
@@ -453,7 +529,6 @@ B: Cool!`}
                     />
                   </div>
 
-                  {/* Voice Dropdown */}
                   <select
                     value={person.voice}
                     onChange={(e) => updatePerson(person.id, 'voice', e.target.value)}
@@ -467,7 +542,6 @@ B: Cool!`}
                 </div>
               ))}
 
-              {/* Add Person Card */}
               {people.length < 10 && (
                 <button
                   onClick={addPerson}
@@ -480,10 +554,21 @@ B: Cool!`}
           </div>
         </div>
 
-        {/* Worker Status */}
-        <div className="mt-6 flex items-center gap-2 text-[#52525b] text-sm">
-          <div className="w-2 h-2 rounded-full bg-[#fbbf24] animate-pulse" />
-          <span>Worker must be running on your PC</span>
+        {/* Worker Status Indicator */}
+        <div className="mt-6 flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${workerDisplay.color} ${workerStatus === 'online' ? 'animate-pulse' : ''}`} />
+            <span className={`text-sm font-medium ${workerDisplay.textColor}`}>{workerDisplay.text}</span>
+          </div>
+          {workerStatus === 'offline' && (
+            <span className="text-xs text-[#52525b]">Start the worker on your PC to generate videos</span>
+          )}
+          {workerStatus === 'online' && (
+            <span className="text-xs text-[#52525b]">Ready to process jobs</span>
+          )}
+          {workerStatus === 'busy' && (
+            <span className="text-xs text-[#52525b]">Processing another job...</span>
+          )}
         </div>
       </div>
 
@@ -500,17 +585,12 @@ B: Cool!`}
         ) : (
           <div className="space-y-3">
             {jobs.map(job => (
-              <div
-                key={job.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors"
-              >
+              <div key={job.id} className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors">
                 <div className="flex items-center gap-4">
                   {getStatusIcon(job.status)}
                   <div>
                     <p className="text-[#f8fafc] font-medium">{job.input_data.project_name}</p>
-                    <p className="text-[#71717a] text-sm">
-                      {getStatusText(job)} • {formatTime(job.created_at)}
-                    </p>
+                    <p className="text-[#71717a] text-sm">{getStatusText(job)} • {formatTime(job.created_at)}</p>
                   </div>
                 </div>
                 
@@ -528,10 +608,7 @@ B: Cool!`}
                 
                 {job.status === 'processing' && job.progress > 0 && (
                   <div className="w-24 h-2 bg-[rgba(15,12,25,0.6)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] transition-all duration-300"
-                      style={{ width: `${job.progress}%` }}
-                    />
+                    <div className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] transition-all duration-300" style={{ width: `${job.progress}%` }} />
                   </div>
                 )}
               </div>
@@ -540,7 +617,7 @@ B: Cool!`}
         )}
       </div>
 
-      {/* Help Section - Collapsible */}
+      {/* Help Section */}
       <details className="glass-card">
         <summary className="p-6 cursor-pointer text-lg font-semibold text-[#f8fafc] hover:text-[#4ade80] transition-colors">
           Script Syntax Guide
@@ -549,19 +626,15 @@ B: Cool!`}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#4ade80]">A: Hello</code>
-              <p className="text-[#71717a] mt-1">Person A sends a message (receiver/gray)</p>
+              <p className="text-[#71717a] mt-1">Person A sends (receiver/gray)</p>
             </div>
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#60a5fa]">x-A: Hello</code>
-              <p className="text-[#71717a] mt-1">Person A as sender (blue bubble)</p>
-            </div>
-            <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-              <code className="text-[#f87171]">undelivered-A: Failed</code>
-              <p className="text-[#71717a] mt-1">Undelivered message (green + error)</p>
+              <p className="text-[#71717a] mt-1">Person A as sender (blue)</p>
             </div>
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#fbbf24]">[!photo.png!]</code>
-              <p className="text-[#71717a] mt-1">Insert an image in chat</p>
+              <p className="text-[#71717a] mt-1">Insert uploaded image</p>
             </div>
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#c084fc]">##secret##</code>
@@ -569,11 +642,11 @@ B: Cool!`}
             </div>
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#71717a]">-$-</code>
-              <p className="text-[#71717a] mt-1">New image/segment separator</p>
+              <p className="text-[#71717a] mt-1">New segment separator</p>
             </div>
             <div className="p-3 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
               <code className="text-[#71717a]">text: typing...</code>
-              <p className="text-[#71717a] mt-1">Show typing indicator text</p>
+              <p className="text-[#71717a] mt-1">Typing indicator</p>
             </div>
           </div>
         </div>

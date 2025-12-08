@@ -28,3 +28,21 @@ ALTER TABLE video_jobs DISABLE ROW LEVEL SECURITY;
 -- Enable realtime for this table (for live updates in the UI)
 ALTER PUBLICATION supabase_realtime ADD TABLE video_jobs;
 
+-- ============================================
+-- WORKER HEARTBEATS TABLE
+-- Tracks worker status for the UI
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS worker_heartbeats (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  worker_type text UNIQUE NOT NULL,
+  status text DEFAULT 'offline' CHECK (status IN ('online', 'busy', 'offline')),
+  last_heartbeat timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Disable RLS
+ALTER TABLE worker_heartbeats DISABLE ROW LEVEL SECURITY;
+
+-- Enable realtime for live status updates
+ALTER PUBLICATION supabase_realtime ADD TABLE worker_heartbeats;
+

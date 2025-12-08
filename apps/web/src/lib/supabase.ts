@@ -331,3 +331,48 @@ export async function subscribeToVideoJobs(userId: string, callback: (job: Video
     )
     .subscribe();
 }
+
+// ============================================
+// WORKER HEARTBEAT FUNCTIONS
+// ============================================
+
+export interface WorkerHeartbeat {
+  id: string;
+  worker_type: string;
+  last_heartbeat: string;
+  status: 'online' | 'busy' | 'offline';
+}
+
+export async function getWorkerStatus(workerType: string = 'imessage-generator'): Promise<WorkerHeartbeat | null> {
+  const { data, error } = await supabase
+    .from('worker_heartbeats')
+    .select('*')
+    .eq('worker_type', workerType)
+    .single();
+  
+  if (error) return null;
+  return data as WorkerHeartbeat;
+}
+
+export async function subscribeToWorkerStatus(workerType: string, callback: (heartbeat: WorkerHeartbeat | null) => void) {
+  // Initial fetch
+  const initial = await getWorkerStatus(workerType);
+  callback(initial);
+  
+  // Subscribe to changes
+  return supabase
+    .channel('worker_heartbeat_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'worker_heartbeats',
+        filter: `worker_type=eq.${workerType}`,
+      },
+      (payload) => {
+        callback(payload.new as WorkerHeartbeat);
+      }
+    )
+    .subscribe();
+}

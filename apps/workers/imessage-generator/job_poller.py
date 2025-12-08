@@ -62,6 +62,39 @@ else:
 
 POLL_INTERVAL = 10  # seconds
 SCRIPTS_PATH = 'scripts'
+WORKER_TYPE = 'imessage-generator'
+
+# ============================================
+# HEARTBEAT FUNCTIONS
+# ============================================
+
+def send_heartbeat(status: str = 'online'):
+    """Send a heartbeat to indicate worker is alive"""
+    try:
+        # Upsert the heartbeat record
+        supabase.table('worker_heartbeats').upsert({
+            'worker_type': WORKER_TYPE,
+            'status': status,
+            'last_heartbeat': datetime.utcnow().isoformat(),
+        }, on_conflict='worker_type').execute()
+    except Exception as e:
+        # Don't crash if heartbeat fails
+        pass
+
+def set_worker_offline():
+    """Mark worker as offline"""
+    try:
+        supabase.table('worker_heartbeats').upsert({
+            'worker_type': WORKER_TYPE,
+            'status': 'offline',
+            'last_heartbeat': datetime.utcnow().isoformat(),
+        }, on_conflict='worker_type').execute()
+    except Exception as e:
+        pass
+
+# ============================================
+# R2 UPLOAD FUNCTION
+# ============================================
 
 def upload_to_r2(file_path: str, job_id: str) -> str:
     """Upload a file to Cloudflare R2 and return the public URL"""
@@ -278,26 +311,44 @@ def main():
     print("\nWaiting for jobs from the web UI...")
     print("(Press Ctrl+C to stop)\n")
     
-    while True:
-        try:
-            jobs = get_pending_jobs()
-            
-            if jobs:
-                for job in jobs:
-                    process_job(job)
-            else:
-                # Show a dot to indicate we're alive
-                print(".", end="", flush=True)
-            
-            time.sleep(POLL_INTERVAL)
-            
-        except KeyboardInterrupt:
-            print("\n\nStopping job poller...")
-            break
-        except Exception as e:
-            print(f"\nError in main loop: {e}")
-            traceback.print_exc()
-            time.sleep(POLL_INTERVAL)
+    # Send initial heartbeat
+    send_heartbeat('online')
+    print("  Status: Online")
+    
+    try:
+        while True:
+            try:
+                # Send heartbeat each cycle
+                send_heartbeat('online')
+                
+                jobs = get_pending_jobs()
+                
+                if jobs:
+                    for job in jobs:
+                        # Mark as busy while processing
+                        send_heartbeat('busy')
+                        process_job(job)
+                        # Back to online after processing
+                        send_heartbeat('online')
+                else:
+                    # Show a dot to indicate we're alive
+                    print(".", end="", flush=True)
+                
+                time.sleep(POLL_INTERVAL)
+                
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                print(f"\nError in main loop: {e}")
+                traceback.print_exc()
+                time.sleep(POLL_INTERVAL)
+    
+    except KeyboardInterrupt:
+        print("\n\nStopping job poller...")
+    finally:
+        # Mark as offline when stopping
+        set_worker_offline()
+        print("  Status: Offline")
 
 if __name__ == '__main__':
     main()
