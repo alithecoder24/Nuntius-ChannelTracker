@@ -47,7 +47,8 @@ function formatNumber(num: number): string {
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Use UTC to avoid timezone shifting (e.g., Dec 7 23:00 UTC showing as Dec 8 in local time)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 export default function ChannelStatsModal({ isOpen, onClose, channel, userTags = [], onUpdateTag }: ChannelStatsModalProps) {
