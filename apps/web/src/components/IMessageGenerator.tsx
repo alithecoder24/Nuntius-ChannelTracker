@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X, Image, Wifi, WifiOff } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download, Upload, User, FileText, X, Image, Monitor, Smartphone, Film, ChevronDown } from 'lucide-react';
 import { createVideoJob, getVideoJobs, subscribeToVideoJobs, getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat } from '@/lib/supabase';
 
 interface Person {
@@ -13,7 +13,7 @@ interface Person {
 
 interface UploadedImage {
   name: string;
-  data: string; // base64
+  data: string;
 }
 
 interface IMessageGeneratorProps {
@@ -38,6 +38,78 @@ const VOICES = [
   { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
   { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi' },
 ];
+
+const CLIP_BACKGROUNDS = [
+  { id: 'clipmix1', name: 'ClipMix 1' },
+  { id: 'clipmix2', name: 'ClipMix 2' },
+  { id: 'clipmix3', name: 'ClipMix 3' },
+];
+
+// Custom styled select component
+function StyledSelect({ value, onChange, options, placeholder }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { id: string; name: string }[];
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.id === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] text-sm focus:outline-none focus:border-[rgba(34,197,94,0.4)] transition-colors flex items-center justify-between gap-2"
+      >
+        <span className={selectedOption ? 'text-[#f8fafc]' : 'text-[#52525b]'}>
+          {selectedOption?.name || placeholder || 'Select...'}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-[#71717a] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 py-1 rounded-lg bg-[rgba(20,15,35,0.98)] border border-[rgba(168,85,247,0.25)] shadow-xl backdrop-blur-sm max-h-48 overflow-y-auto">
+          {placeholder && (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setIsOpen(false); }}
+              className="w-full px-3 py-2 text-left text-sm text-[#52525b] hover:bg-[rgba(168,85,247,0.1)] transition-colors"
+            >
+              {placeholder}
+            </button>
+          )}
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => { onChange(option.id); setIsOpen(false); }}
+              className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                value === option.id
+                  ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]'
+                  : 'text-[#f8fafc] hover:bg-[rgba(168,85,247,0.1)]'
+              }`}
+            >
+              {option.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   const [projectName, setProjectName] = useState('');
@@ -65,6 +137,11 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   // Worker status
   const [workerStatus, setWorkerStatus] = useState<'online' | 'busy' | 'offline'>('offline');
   const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(null);
+
+  // Video options
+  const [background, setBackground] = useState<'transparent' | 'greenscreen' | 'clip'>('transparent');
+  const [selectedClip, setSelectedClip] = useState<string>('');
+  const [resolution, setResolution] = useState<'landscape' | 'portrait'>('landscape');
 
   // Load jobs and subscribe to updates
   useEffect(() => {
@@ -116,7 +193,6 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
       
       setLastHeartbeat(lastBeat);
       
-      // If last heartbeat was more than 30 seconds ago, consider offline
       if (diffSeconds > 30) {
         setWorkerStatus('offline');
       } else {
@@ -126,7 +202,6 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
     
     const subscription = subscribeToWorkerStatus('imessage-generator', checkWorkerStatus);
     
-    // Also poll every 10 seconds as backup
     const interval = setInterval(async () => {
       const status = await getWorkerStatus('imessage-generator');
       checkWorkerStatus(status);
@@ -178,8 +253,6 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   };
 
   const handleImagesUpload = (files: FileList) => {
-    const newImages: UploadedImage[] = [];
-    
     Array.from(files).forEach(file => {
       if (!file.type.startsWith('image/')) return;
       
@@ -225,6 +298,10 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
           image: p.image,
         })),
         images: uploadedImages,
+        // New video options
+        background: background,
+        selected_clip: background === 'clip' ? selectedClip : null,
+        resolution: resolution,
       } as any);
       
       setJobs([newJob, ...jobs]);
@@ -268,12 +345,9 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
 
   const getWorkerStatusDisplay = () => {
     switch (workerStatus) {
-      case 'online':
-        return { color: 'bg-[#4ade80]', text: 'Worker Online', textColor: 'text-[#4ade80]' };
-      case 'busy':
-        return { color: 'bg-[#fbbf24]', text: 'Worker Busy', textColor: 'text-[#fbbf24]' };
-      case 'offline':
-        return { color: 'bg-[#f87171]', text: 'Worker Offline', textColor: 'text-[#f87171]' };
+      case 'online': return { color: 'bg-[#4ade80]', text: 'Worker Online', textColor: 'text-[#4ade80]' };
+      case 'busy': return { color: 'bg-[#fbbf24]', text: 'Worker Busy', textColor: 'text-[#fbbf24]' };
+      case 'offline': return { color: 'bg-[#f87171]', text: 'Worker Offline', textColor: 'text-[#f87171]' };
     }
   };
 
@@ -294,7 +368,6 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
             </div>
           </div>
           
-          {/* Generate Button */}
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || !projectName.trim() || !script.trim() || workerStatus === 'offline'}
@@ -364,6 +437,91 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
                     {darkMode ? <Moon className="w-4 h-4 text-[#0f0f0f]" /> : <Sun className="w-4 h-4 text-[#a1a1aa]" />}
                   </div>
                 </button>
+              </div>
+            </div>
+
+            {/* Background & Resolution Options */}
+            <div className="flex items-end gap-4">
+              {/* Background */}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Background</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBackground('transparent')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      background === 'transparent'
+                        ? 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-[#4ade80]'
+                        : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                    }`}
+                  >
+                    Transparent
+                  </button>
+                  <button
+                    onClick={() => setBackground('greenscreen')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      background === 'greenscreen'
+                        ? 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-[#4ade80]'
+                        : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                    }`}
+                  >
+                    Greenscreen
+                  </button>
+                  <button
+                    onClick={() => setBackground('clip')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                      background === 'clip'
+                        ? 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-[#4ade80]'
+                        : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                    }`}
+                  >
+                    <Film className="w-3 h-3" />
+                    Clip
+                  </button>
+                </div>
+              </div>
+
+              {/* Clip Selector (shown when clip background is selected) */}
+              {background === 'clip' && (
+                <div className="w-32">
+                  <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Clip</label>
+                  <StyledSelect
+                    value={selectedClip}
+                    onChange={setSelectedClip}
+                    options={CLIP_BACKGROUNDS}
+                    placeholder="Select..."
+                  />
+                </div>
+              )}
+
+              {/* Resolution */}
+              <div>
+                <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Format</label>
+                <div className="flex gap-1 p-1 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)]">
+                  <button
+                    onClick={() => setResolution('landscape')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-all ${
+                      resolution === 'landscape'
+                        ? 'bg-[rgba(34,197,94,0.2)] text-[#4ade80]'
+                        : 'text-[#71717a] hover:text-[#a1a1aa]'
+                    }`}
+                    title="1920x1080 @ 30fps"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    16:9
+                  </button>
+                  <button
+                    onClick={() => setResolution('portrait')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-all ${
+                      resolution === 'portrait'
+                        ? 'bg-[rgba(34,197,94,0.2)] text-[#4ade80]'
+                        : 'text-[#71717a] hover:text-[#a1a1aa]'
+                    }`}
+                    title="1080x1920 @ 30fps"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    9:16
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -529,16 +687,13 @@ B: Cool!`}
                     />
                   </div>
 
-                  <select
+                  {/* Styled Voice Select */}
+                  <StyledSelect
                     value={person.voice}
-                    onChange={(e) => updatePerson(person.id, 'voice', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.1)] text-[#f8fafc] text-sm focus:outline-none focus:border-[rgba(34,197,94,0.3)] appearance-none cursor-pointer"
-                  >
-                    <option value="">Select voice...</option>
-                    {VOICES.map(voice => (
-                      <option key={voice.id} value={voice.id}>{voice.name}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => updatePerson(person.id, 'voice', value)}
+                    options={VOICES}
+                    placeholder="Select voice..."
+                  />
                 </div>
               ))}
 
