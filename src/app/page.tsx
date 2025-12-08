@@ -531,8 +531,8 @@ export default function Home() {
         />
 
         {/* Main Content */}
-        <main className="flex-1 relative z-[1]">
-          <div className="max-w-[1600px] space-y-6">
+        <main className="flex-1 relative z-[1] min-w-0">
+          <div className="w-full space-y-6">
             <FilterSection filters={filters} onFilterChange={setFilters} />
             <VideoResults videos={mockVideos} />
             {profiles.length > 0 ? (

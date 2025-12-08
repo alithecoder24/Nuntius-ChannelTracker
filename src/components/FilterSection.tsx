@@ -88,7 +88,7 @@ export default function FilterSection({ filters, onFilterChange }: FilterSection
       </div>
 
       {/* View & Length Filters */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="block text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mb-2">
             Min Views
