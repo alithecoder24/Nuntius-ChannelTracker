@@ -387,37 +387,30 @@ export default function Home() {
 
   // Sort channels
   const sortedChannels = [...channels].sort((a, b) => {
-    let comparison = 0;
     switch (sortBy) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name);
-        break;
+      case 'name': {
+        const cmp = a.name.localeCompare(b.name);
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
       case 'views28d':
-        comparison = parseFormattedNumber(b.views28d) - parseFormattedNumber(a.views28d);
-        break;
+        return parseFormattedNumber(b.views28d) - parseFormattedNumber(a.views28d);
       case 'views1d':
-        comparison = (b.views1d ?? 0) - (a.views1d ?? 0);
-        break;
+        return (b.views1d ?? 0) - (a.views1d ?? 0);
       case 'newest':
       default:
-        comparison = 0; // Keep original order (newest first from DB)
-        break;
+        // For newest/oldest, use original array index
+        const idxA = channels.findIndex(c => c.id === a.id);
+        const idxB = channels.findIndex(c => c.id === b.id);
+        return sortDirection === 'desc' ? idxA - idxB : idxB - idxA;
     }
-    // Apply direction (for name and newest, flip if desc/asc respectively)
-    if (sortBy === 'name') {
-      return sortDirection === 'asc' ? comparison : -comparison;
-    }
-    if (sortBy === 'newest') {
-      return sortDirection === 'desc' ? comparison : -comparison; // desc = newest first, asc = oldest first
-    }
-    return comparison; // views always desc (highest first)
   });
 
-  // Compute ranking by 24h views for highlighting
-  const rankedBy1d = [...sortedChannels].sort((a, b) => (b.views1d ?? 0) - (a.views1d ?? 0));
+  // Compute ranking by 24h views for highlighting - ONLY channels with >0 views compete
+  const channelsWithViews = channels.filter(ch => (ch.views1d ?? 0) > 0);
+  const rankedBy1d = [...channelsWithViews].sort((a, b) => (b.views1d ?? 0) - (a.views1d ?? 0));
   const topRanks: Record<string, number> = {};
-  rankedBy1d.forEach((ch, idx) => {
-    topRanks[ch.id] = idx + 1; // 1-based rank
+  rankedBy1d.slice(0, 3).forEach((ch, idx) => {
+    topRanks[ch.id] = idx + 1; // Only Top 3 get ranks (1, 2, 3)
   });
 
   // Pass down a helper to get rank-based highlight
