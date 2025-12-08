@@ -42,7 +42,7 @@ const VOICES = [
 // Shared ClipMix library (C:\Nuntius-Clip-Mix\)
 // Add more entries here when you add new clips to the folder
 const CLIP_BACKGROUNDS = [
-  { id: 'Mix_1', name: '🎬 Mix 1' },
+  { id: 'Mix_1', name: '🥐 Cookim' },
 ];
 
 // Custom styled select component
