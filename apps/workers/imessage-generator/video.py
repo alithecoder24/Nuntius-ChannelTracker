@@ -730,8 +730,13 @@ class VideoGenerator:
                         tts_voice = message_data.voice
 
                         def generate_tts():
-                            return client.generate(text=message_data.text_content, voice=tts_voice,
-                                                   voice_settings=voice_settings, model="eleven_multilingual_v2")
+                            # New ElevenLabs SDK uses text_to_speech.convert()
+                            return client.text_to_speech.convert(
+                                text=message_data.text_content,
+                                voice_id=tts_voice,
+                                model_id="eleven_multilingual_v2",
+                                voice_settings=voice_settings
+                            )
 
                         audio = generate_tts()
                         # handle too busy errors

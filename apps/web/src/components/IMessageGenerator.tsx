@@ -283,7 +283,7 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
                   >
                     <option value="">Select voice...</option>
                     {VOICES.map(voice => (
-                      <option key={voice.id} value={voice.name}>{voice.name}</option>
+                      <option key={voice.id} value={voice.id}>{voice.name}</option>
                     ))}
                   </select>
                 </div>
