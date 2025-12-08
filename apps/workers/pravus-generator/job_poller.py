@@ -50,10 +50,10 @@ if R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY:
 else:
     print("WARNING: R2 not configured, videos will only be saved locally")
 
-# Shared assets path
-SHARED_ASSETS_PATH = os.getenv('SHARED_ASSETS_PATH', 'C:/Nuntius/assets')
-VIDEO_CLIP_MIX_DIR = os.path.join(SHARED_ASSETS_PATH, 'VideoClipMix')
-MUSIC_DIR = os.path.join(SHARED_ASSETS_PATH, 'Music')
+# Shared ClipMix folder (both iMessage and Pravus use this)
+VIDEO_CLIP_MIX_DIR = os.getenv('CLIP_MIX_PATH', 'C:/Nuntius-Clip-Mix')
+# Music folder (Pravus only)
+MUSIC_DIR = os.getenv('MUSIC_PATH', 'C:/Nuntius/assets/Music')
 
 # Local paths
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'output')

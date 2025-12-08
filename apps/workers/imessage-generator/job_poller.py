@@ -65,9 +65,8 @@ POLL_INTERVAL = 10  # seconds
 SCRIPTS_PATH = 'scripts'
 WORKER_TYPE = 'imessage-generator'
 
-# Shared assets path (same as Pravus)
-SHARED_ASSETS_PATH = os.getenv('SHARED_ASSETS_PATH', 'C:/Nuntius/assets')
-VIDEO_CLIP_MIX_DIR = os.path.join(SHARED_ASSETS_PATH, 'VideoClipMix')
+# Shared ClipMix folder (both iMessage and Pravus use this)
+VIDEO_CLIP_MIX_DIR = os.getenv('CLIP_MIX_PATH', 'C:/Nuntius-Clip-Mix')
 
 # ============================================
 # HEARTBEAT FUNCTIONS
