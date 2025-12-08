@@ -13,7 +13,8 @@ import UserMenu from '@/components/UserMenu';
 import AddChannelModal from '@/components/AddChannelModal';
 import TagManagementModal from '@/components/TagManagementModal';
 import TeamManagementModal from '@/components/TeamManagementModal';
-import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, Tag, Users, ShieldX, Flame, MessageSquare, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, FolderOpen, TrendingUp, BarChart3, Plus, Tag, Users, ShieldX, Flame } from 'lucide-react';
+import IMessageGenerator from '@/components/IMessageGenerator';
 
 interface Profile { id: string; name: string; visibility: 'private' | 'team'; createdBy: string; }
 
@@ -547,64 +548,7 @@ export default function Home() {
         <main className="flex-1 relative z-[1] min-w-0">
           {/* Tool View */}
           {activeTool === 'imessage-generator' ? (
-            <div className="w-full space-y-6">
-              {/* Tool Header */}
-              <div className="glass-card p-6">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#22c55e]/20 to-[#4ade80]/20 flex items-center justify-center border border-[rgba(34,197,94,0.3)]">
-                    <MessageSquare className="w-6 h-6 text-[#4ade80]" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-[#f8fafc]">iMessage Generator</h1>
-                    <p className="text-[#71717a] text-sm">Generate fake iMessage conversation videos</p>
-                  </div>
-                </div>
-
-                {/* Input Form */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Conversation Script</label>
-                    <textarea
-                      placeholder="Enter your conversation script here...&#10;&#10;Example:&#10;Person 1: Hey, what's up?&#10;Person 2: Not much, just chilling"
-                      className="w-full h-48 px-4 py-3 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] text-[#f8fafc] placeholder-[#52525b] focus:outline-none focus:border-[rgba(168,85,247,0.4)] resize-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button className="btn btn-primary px-6 py-3 inline-flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4" />
-                      Generate Video
-                    </button>
-                    <span className="text-[#52525b] text-sm">Your PC must be running the worker for this to process</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Job Queue */}
-              <div className="glass-card p-6">
-                <h2 className="text-lg font-semibold text-[#f8fafc] mb-4">Recent Jobs</h2>
-                <div className="text-center py-8 text-[#52525b]">
-                  <Clock className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                  <p>No jobs yet. Generate a video to get started.</p>
-                </div>
-                {/* Example job items would show here */}
-                {/*
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#4ade80]" />
-                      <div>
-                        <p className="text-[#f8fafc] font-medium">Conversation #1</p>
-                        <p className="text-[#71717a] text-sm">Completed 2 min ago</p>
-                      </div>
-                    </div>
-                    <button className="px-4 py-2 rounded-lg text-sm font-medium text-[#4ade80] bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] hover:bg-[rgba(34,197,94,0.2)]">
-                      Download
-                    </button>
-                  </div>
-                </div>
-                */}
-              </div>
-            </div>
+            <IMessageGenerator />
           ) : (
           <div className="w-full space-y-6">
             <FilterSection filters={filters} onFilterChange={setFilters} />

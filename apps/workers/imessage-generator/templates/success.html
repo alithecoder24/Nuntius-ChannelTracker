@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Generating{% endblock %}
+
+{% block content %}
+    <style>
+        #ss-progress, #video-progress, #complete {
+            transition: background-color 0.5s ease-in-out;
+        }
+    </style>
+    <div class="h-screen bg-background flex flex-col items-center justify-center">
+        <div class="my-8 flex">
+            <div class="w-32 mx-1 flex flex-col items-center">
+                <h4 class="font-bold text-custom-gray">Screenshots</h4>
+                <div class="size-[10px] mb-3 mt-1 rounded-full bg-custom-blue"></div>
+                <div id="ss-progress"
+                     class="w-full bg-custom-blue/50 border-custom-blue h-8 border-[3px] rounded-2xl"></div>
+            </div>
+            <div class="w-72 mx-1 flex flex-col items-center">
+                <h4 class="font-bold text-custom-gray">Video & Voices</h4>
+                <div class="size-[10px] mb-3 mt-1 rounded-full bg-custom-blue"></div>
+                <div id="video-progress" class="w-full border-custom-blue h-8 border-[3px] rounded-2xl"></div>
+            </div>
+            <div class="w-12 mx-1 flex flex-col items-center">
+                <h4 class="font-bold text-custom-gray">Complete</h4>
+                <div class="size-[10px] mb-3 mt-1 rounded-full bg-custom-blue"></div>
+                <div id="complete" class="w-full border-custom-blue h-8 border-[3px] rounded-2xl"></div>
+            </div>
+        </div>
+        <svg id="video" class="hidden" width="81" height="82" viewBox="0 0 81 82" fill="none"
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M8.1 82C5.8725 82 3.96563 81.1971 2.37938 79.5913C0.793125 77.9854 0 76.055 0 73.8V32.8C0 30.545 0.793125 28.6146 2.37938 27.0088C3.96563 25.4029 5.8725 24.6 8.1 24.6H72.9C75.1275 24.6 77.0344 25.4029 78.6206 27.0088C80.2069 28.6146 81 30.545 81 32.8V73.8C81 76.055 80.2069 77.9854 78.6206 79.5913C77.0344 81.1971 75.1275 82 72.9 82H8.1ZM35.5388 67.5475L54.1688 55.0425C54.7763 54.6325 55.08 54.0517 55.08 53.3C55.08 52.5483 54.7763 51.9675 54.1688 51.5575L35.5388 39.0525C34.8638 38.5742 34.1719 38.5229 33.4631 38.8988C32.7544 39.2746 32.4 39.8725 32.4 40.6925V65.9075C32.4 66.7275 32.7544 67.3254 33.4631 67.7013C34.1719 68.0771 34.8638 68.0258 35.5388 67.5475ZM12.15 20.5C11.0025 20.5 10.0406 20.1071 9.26438 19.3213C8.48812 18.5354 8.1 17.5617 8.1 16.4C8.1 15.2383 8.48812 14.2646 9.26438 13.4788C10.0406 12.6929 11.0025 12.3 12.15 12.3H68.85C69.9975 12.3 70.9594 12.6929 71.7356 13.4788C72.5119 14.2646 72.9 15.2383 72.9 16.4C72.9 17.5617 72.5119 18.5354 71.7356 19.3213C70.9594 20.1071 69.9975 20.5 68.85 20.5H12.15ZM24.3 8.2C23.1525 8.2 22.1906 7.80708 21.4144 7.02125C20.6381 6.23542 20.25 5.26167 20.25 4.1C20.25 2.93833 20.6381 1.96458 21.4144 1.17875C22.1906 0.392917 23.1525 0 24.3 0H56.7C57.8475 0 58.8094 0.392917 59.5856 1.17875C60.3619 1.96458 60.75 2.93833 60.75 4.1C60.75 5.26167 60.3619 6.23542 59.5856 7.02125C58.8094 7.80708 57.8475 8.2 56.7 8.2H24.3Z"
+                  fill="#0A68FE"></path>
+        </svg>
+        <svg id="screenshot" width="73" height="73" viewBox="0 0 73 73" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8.11111 73C5.88056 73 3.97106 72.2058 2.38264 70.6174C0.794213 69.0289 0 67.1194 0 64.8889V8.11111C0 5.88056 0.794213 3.97106 2.38264 2.38264C3.97106 0.794213 5.88056 0 8.11111 0H64.8889C67.1194 0 69.0289 0.794213 70.6174 2.38264C72.2058 3.97106 73 5.88056 73 8.11111V64.8889C73 67.1194 72.2058 69.0289 70.6174 70.6174C69.0289 72.2058 67.1194 73 64.8889 73H8.11111ZM16.2222 56.7778H56.7778C57.5889 56.7778 58.1972 56.406 58.6028 55.6625C59.0083 54.919 58.9407 54.2093 58.4 53.5333L47.2472 38.6292C46.8417 38.0884 46.3009 37.8181 45.625 37.8181C44.9491 37.8181 44.4083 38.0884 44.0028 38.6292L33.4583 52.7222L25.9556 42.6847C25.55 42.144 25.0093 41.8736 24.3333 41.8736C23.6574 41.8736 23.1167 42.144 22.7111 42.6847L14.6 53.5333C14.0593 54.2093 13.9917 54.919 14.3972 55.6625C14.8028 56.406 15.4111 56.7778 16.2222 56.7778Z"
+                  fill="#0A68FE"></path>
+        </svg>
+        <svg id="error" class="hidden" width="81" height="76" viewBox="0 0 81 76" fill="none"
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.2 65.3555L6.885 74.7504C5.6025 76.0438 4.13438 76.3332 2.48062 75.6184C0.826875 74.9035 0 73.6271 0 71.7889V8.16944C0 5.92284 0.793125 3.99962 2.37937 2.39977C3.96563 0.799924 5.8725 0 8.1 0H72.9C75.1275 0 77.0344 0.799924 78.6206 2.39977C80.2069 3.99962 81 5.92284 81 8.16944V57.1861C81 59.4327 80.2069 61.3559 78.6206 62.9557C77.0344 64.5556 75.1275 65.3555 72.9 65.3555H16.2ZM40.5 53.1013C41.6475 53.1013 42.6094 52.7099 43.3856 51.927C44.1619 51.1441 44.55 50.174 44.55 49.0166C44.55 47.8593 44.1619 46.8892 43.3856 46.1063C42.6094 45.3234 41.6475 44.9319 40.5 44.9319C39.3525 44.9319 38.3906 45.3234 37.6144 46.1063C36.8381 46.8892 36.45 47.8593 36.45 49.0166C36.45 50.174 36.8381 51.1441 37.6144 51.927C38.3906 52.7099 39.3525 53.1013 40.5 53.1013ZM40.5 36.7625C41.6475 36.7625 42.6094 36.371 43.3856 35.5881C44.1619 34.8052 44.55 33.8351 44.55 32.6777V16.3389C44.55 15.1815 44.1619 14.2114 43.3856 13.4285C42.6094 12.6456 41.6475 12.2542 40.5 12.2542C39.3525 12.2542 38.3906 12.6456 37.6144 13.4285C36.8381 14.2114 36.45 15.1815 36.45 16.3389V32.6777C36.45 33.8351 36.8381 34.8052 37.6144 35.5881C38.3906 36.371 39.3525 36.7625 40.5 36.7625Z"
+                  fill="#DC3545"></path>
+        </svg>
+        <svg id="success" class="hidden" width="81" height="81" viewBox="0 0 81 81" fill="none"
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M34.83 47.79L26.1225 39.0825C25.38 38.34 24.435 37.9688 23.2875 37.9688C22.14 37.9688 21.195 38.34 20.4525 39.0825C19.71 39.825 19.3388 40.77 19.3388 41.9175C19.3388 43.065 19.71 44.01 20.4525 44.7525L31.995 56.295C32.805 57.105 33.75 57.51 34.83 57.51C35.91 57.51 36.855 57.105 37.665 56.295L60.5475 33.4125C61.29 32.67 61.6613 31.725 61.6613 30.5775C61.6613 29.43 61.29 28.485 60.5475 27.7425C59.805 27 58.86 26.6287 57.7125 26.6287C56.565 26.6287 55.62 27 54.8775 27.7425L34.83 47.79ZM40.5 81C34.8975 81 29.6325 79.9369 24.705 77.8106C19.7775 75.6844 15.4913 72.7988 11.8462 69.1537C8.20125 65.5088 5.31563 61.2225 3.18937 56.295C1.06313 51.3675 0 46.1025 0 40.5C0 34.8975 1.06313 29.6325 3.18937 24.705C5.31563 19.7775 8.20125 15.4913 11.8462 11.8462C15.4913 8.20125 19.7775 5.31563 24.705 3.18937C29.6325 1.06313 34.8975 0 40.5 0C46.1025 0 51.3675 1.06313 56.295 3.18937C61.2225 5.31563 65.5088 8.20125 69.1537 11.8462C72.7988 15.4913 75.6844 19.7775 77.8106 24.705C79.9369 29.6325 81 34.8975 81 40.5C81 46.1025 79.9369 51.3675 77.8106 56.295C75.6844 61.2225 72.7988 65.5088 69.1537 69.1537C65.5088 72.7988 61.2225 75.6844 56.295 77.8106C51.3675 79.9369 46.1025 81 40.5 81Z"
+                  fill="#0FB684"></path>
+        </svg>
+        <h1 id="progress" class="my-3 text-custom-gray font-bold text-5xl">Waiting for update</h1>
+        <a id="return" class="hidden bg-[#DC3545] mt-6 text-center text-white rounded-full font-semibold w-44 py-3 drop-shadow-2xl" href={{ url_for('index') }}>Return to Menu</a>
+        <a id="cancel"
+           class="bg-[#DC3545] mt-6 text-center text-white rounded-full font-semibold w-44 py-3 drop-shadow-2xl"
+           href={{ url_for('stop', id=id) }}>Cancel Generation</a>
+        <button class="hidden bg-custom-green mt-6 text-white rounded-full font-semibold w-44 text-center py-3 drop-shadow-2xl"
+           id="openfile" onclick="openFile()">Open File</button>
+        <p class="text-custom-gray font-semibold mt-2">Generation Time: <span id="time">0s</span></p>
+    </div>
+    <script>
+        // Get the id of the video to check the status of from url parameters
+        const id = new URLSearchParams(window.location.search).get('id');
+
+        function checkStatus() {
+            fetch(`/get_status/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    let progress = document.getElementById('progress');
+                    let video = document.getElementById('video');
+                    let error = document.getElementById('error');
+                    let screenshot = document.getElementById('screenshot');
+                    let success = document.getElementById('success');
+
+                    let ssProgress = document.getElementById('ss-progress');
+                    let videoProgress = document.getElementById('video-progress');
+                    let complete = document.getElementById('complete');
+
+                    progress.innerHTML = data.status;
+                    if (data.status === 'generated') {
+                        progress.innerHTML = 'Video generated!';
+                        success.classList.remove('hidden');
+                        video.classList.add('hidden');
+                        screenshot.classList.add('hidden');
+                        ssProgress.classList.add('!bg-custom-blue');
+                        videoProgress.classList.add('!bg-custom-blue');
+                        complete.classList.add('!bg-custom-blue');
+                        clearInterval(intervalID)
+                        clearInterval(timeInterval)
+
+                        document.getElementById('cancel').classList.add('hidden');
+                        document.getElementById('openfile').classList.remove('hidden');
+                    } else if (data.status.split(':')[0].toLowerCase() === 'error') {
+                        error.classList.remove('hidden');
+                        screenshot.classList.add('hidden');
+                        video.classList.add('hidden');
+
+                        ssProgress.classList.add('!bg-custom-blue');
+                        videoProgress.classList.add('!bg-custom-blue');
+                        complete.classList.add('!bg-custom-blue');
+
+                        document.getElementById('cancel').classList.add('hidden');
+                        document.getElementById('return').classList.remove('hidden');
+
+                        clearInterval(intervalID)
+                        clearInterval(timeInterval)
+                    } else if (data.status.split(':')[0] === 'video') {
+                        video.classList.remove('hidden');
+                        screenshot.classList.add('hidden');
+
+                        progress.innerHTML = data.status.split('video:')[1];
+
+                        ssProgress.classList.add('!bg-custom-blue');
+                        videoProgress.classList.add('bg-custom-blue/50');
+
+                    } else if (data.status === 'pending') {
+                        progress.innerHTML = `Queued for generation...`;
+                    }
+                })
+                .catch(error => console.error('Error fetching status:', error));
+        }
+
+        const openFile = () => {
+            fetch(`open_video/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data)
+                })
+                .catch(error => console.error('Error opening file:', error));
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            checkStatus()
+        })
+        let time = parseInt(sessionStorage.getItem(`time-${id}`)) || 0;
+        document.getElementById('time').innerHTML = `${Math.floor(time / 60)}m ${time % 60}s`
+        let timeInterval = setInterval(() => {
+            time += 1;
+            sessionStorage.setItem(`time-${id}`, time);
+            document.getElementById('time').innerHTML = `${Math.floor(time / 60)}m ${time % 60}s`
+        }, 1000)
+        // Periodically check the status every 500ms
+        let intervalID = setInterval(checkStatus, 500);
+    </script>
+
+{% endblock %}

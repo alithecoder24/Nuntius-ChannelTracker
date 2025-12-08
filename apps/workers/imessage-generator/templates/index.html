@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Video{% endblock %}
+
+{% block content %}
+    <script>
+        const amountofPeople = 8
+        const buttonFrom = 5
+
+        document.addEventListener("DOMContentLoaded", function () {
+            // show all the people that have values
+            for (let i = buttonFrom; i <= amountofPeople; i++) {
+                const person = document.getElementById(i.toString());
+                let name_input = document.getElementById(`name_${String.fromCharCode(96 + i)}`);
+                console.log(name_input.value)
+                console.log(String.fromCharCode(97 + i))
+                if (name_input.value !== '') {
+                    person.classList.remove('hidden');
+                }
+            }
+            checkButton();
+        });
+
+        const setAPIKey = () => {
+            const apiKey = document.getElementById('api').value;
+            if (apiKey.length < 8) {
+                alert('API Key should be at least 8 characters long');
+                return;
+            }
+            fetch(`{{ url_for('set_api_key') }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({api_key: apiKey})
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('API Key set successfully');
+                    } else {
+                        alert('API Key not set');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message)
+                });
+        }
+
+        const loadOldScript = () => {
+            const scriptId = document.getElementById('scripts').value;
+            // redirect to the same page with the script id as a query parameter
+            window.location.href = `{{ url_for('index') }}?script=${scriptId}`
+        }
+
+        const checkButton = () => {
+            // hide the add person button if all people are added, check all, not just the last one
+            for (let i = buttonFrom; i <= amountofPeople; i++) {
+                const person = document.getElementById(i.toString());
+                if (person.classList.contains('hidden')) {
+                    return;
+                }
+            }
+            document.getElementById('plus').classList.add('hidden');
+        }
+
+        const addPerson = () => {
+            {# remove hidden tag from the next person #}
+            for (let i = buttonFrom; i <= amountofPeople; i++) {
+                const person = document.getElementById(i.toString());
+                if (person.classList.contains('hidden')) {
+                    person.classList.remove('hidden');
+                    break;
+                }
+            }
+            checkButton();
+        }
+
+        const removePerson = (id) => {
+            id = id.toString();
+            const person = document.getElementById(id);
+            person.classList.add('hidden');
+            document.getElementById('plus').classList.remove('hidden');
+        }
+    </script>
+    <form method="POST" enctype="multipart/form-data"
+          class="lg:grid lg:gap-4 lg:grid-cols-4 lg:pr-8 text-custom-gray bg-background">
+        <div class="lg:col-span-2 2xl:p-16 lg:p-10 p-4">
+            <h1 class="font-bold text-5xl mb-8 2xl:mb-16">Chat Video Generator</h1>
+
+            {{ form.hidden_tag() }}
+            {% if form.errors %}
+                <ul class="bg-red-200 my-3 border-2 border-red-500 rounded-xl p-3">
+                    {% for field_name, field_errors in form.errors|dictsort if field_errors %}
+                        {% for error in field_errors %}
+                            <li class="text-red-500 my-2">{{ form[field_name].label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            <div class="grid lg:grid-cols-3">
+                <div class="my-4 self-end lg:col-span-2 lg:pr-4">
+                    <label class="font-semibold w-full block my-1 text-lg" for="name">{{ form.name.label }}</label>
+                    {{ form.name(class="bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl ps-2 w-full
+                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                </div>
+
+                <div class="relative flex flex-col justify-evenly items-end w-full lg:pl-8 lg:row-span-2 2xl:pr-8 mb-8 lg:mb-0">
+                    <button type="submit"
+                            class="bg-custom-blue text-white mb-16 lg:mb-8 w-full rounded-2xl px-4 py-1 drop-shadow-2xl font-semibold">
+                        Generate Video
+                    </button>
+                    <label for="images"
+                           class="relative flex flex-col bg-[#CBCACA] items-center justify-center rounded-3xl w-full border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="h-10 mb-2"/>
+                            <p class="mb-2 text-custom-blue font-semibold px-2 text-center">Drag and Drop Files</p>
+                            <span class="w-1/2 flex items-center py-2 text-[0.6rem] before:me-2 before:flex-[1_1_0%] before:border-t after:border-custom-gray before:border-custom-gray after:ms-2 after:flex-[1_1_0%] after:border-t">
+                                Or
+                            </span>
+                            <a type="button"
+                               class="bg-custom-blue text-white rounded-2xl px-4 py-1 drop-shadow-2xl font-semibold">Browse</a>
+                        </div>
+                        {{ form.images(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                    <span class="flex items-center justify-between mt-4 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl ps-2 w-full focus-visible:outline-none py-1 focus:border-custom-blue">
+                        <span id="files">0 files uploaded</span>
+                        <svg width="20" height="20" viewBox="0 0 20 20" class="inline mr-2"
+                             fill="none" xmlns="http://www.w3.org/2000/svg"><path
+                                d="M8.6 11.8L6.45 9.65C6.26667 9.46667 6.03333 9.375 5.75 9.375C5.46667 9.375 5.23333 9.46667 5.05 9.65C4.86667 9.83333 4.775 10.0667 4.775 10.35C4.775 10.6333 4.86667 10.8667 5.05 11.05L7.9 13.9C8.1 14.1 8.33333 14.2 8.6 14.2C8.86667 14.2 9.1 14.1 9.3 13.9L14.95 8.25C15.1333 8.06667 15.225 7.83333 15.225 7.55C15.225 7.26667 15.1333 7.03333 14.95 6.85C14.7667 6.66667 14.5333 6.575 14.25 6.575C13.9667 6.575 13.7333 6.66667 13.55 6.85L8.6 11.8ZM10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM10 18C12.2333 18 14.125 17.225 15.675 15.675C17.225 14.125 18 12.2333 18 10C18 7.76667 17.225 5.875 15.675 4.325C14.125 2.775 12.2333 2 10 2C7.76667 2 5.875 2.775 4.325 4.325C2.775 5.875 2 7.76667 2 10C2 12.2333 2.775 14.125 4.325 15.675C5.875 17.225 7.76667 18 10 18Z"
+                                fill="#656565"></path></svg>
+                    </span>
+                </div>
+                <div class="flex flex-col lg:flex-row lg:col-span-2">
+                    <div class="w-full">
+                        <label class="font-semibold w-full block my-1 text-lg"
+                               for="language">{{ form.language.label }}</label>
+                        <div class="flex gap-x-4 w-1/2 max-w-32">
+                            {% for subfield in form.language %}
+                                <label class="w-full rounded-2xl flex flex-col items-center py-1 px-4 border-custom-gray border-2 has-[:checked]:border-4 has-[:checked]:border-custom-blue">
+                                    {{ subfield(class="sr-only", checked=subfield.checked) }}
+                                    <img src="{{ url_for('static', filename=subfield.data + '.png') }}"
+                                         alt="{{ subfield.label.text }}" class="w-9 h-9"/>
+                                    <span class="text-sm font-semibold">{{ subfield.label.text }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="">
+                        <label class="font-semibold w-full block my-1 text-lg"
+                               for="dark_mode">{{ form.dark_mode.label }}</label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            {{ form.dark_mode(class="sr-only peer") }}
+                            <div class="relative w-[75px] h-[35px] bg-[#656565] rounded-full peer peer-checked:after:translate-x-[40px] rtl:peer-checked:after:-translate-x-[71px] after:content-[''] after:absolute after:top-1 after:start-1 after:bg-background after:border-gray-300 after:border after:rounded-full after:h-[27px] after:w-[27px] after:transition-all peer-checked:bg-custom-green"></div>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+            <div class="h-96 lg:h-1/3 2xl:pr-8">
+                <label class="font-semibold w-full block my-1 text-lg" for="name">{{ form.script.label }}</label>
+                {{ form.script(class="w-full h-full min-h-64 bg-transparent text-custom-black border-custom-gray border-2
+            rounded-2xl ps-2 focus-visible:outline-none py-1 focus:border-custom-blue") }}
+            </div>
+        </div>
+        <div class="pl-2 lg:pl-0 py-10">
+            <div class="my-4">
+                <label class="font-bold w-full block my-2 text-lg" for="api">API Key</label>
+                <div class="relative">
+                    <input type="text" id="api" placeholder="Using API Key saved in .env file" minlength="8"
+                           class="bg-transparent placeholder:text-custom-black border-custom-gray border-2 rounded-2xl ps-2 w-full focus-visible:outline-none py-1 focus:border-custom-blue"/>
+
+                    <button onclick="event.preventDefault();setAPIKey();" class="p-2 inline absolute right-0.5 top-0.5">
+                        <svg class="size-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 8.05C2 8.8 2.14167 9.52917 2.425 10.2375C2.70833 10.9458 3.15 11.6 3.75 12.2L4 12.45V11C4 10.7167 4.09583 10.4792 4.2875 10.2875C4.47917 10.0958 4.71667 10 5 10C5.28333 10 5.52083 10.0958 5.7125 10.2875C5.90417 10.4792 6 10.7167 6 11V15C6 15.2833 5.90417 15.5208 5.7125 15.7125C5.52083 15.9042 5.28333 16 5 16H1C0.716667 16 0.479167 15.9042 0.2875 15.7125C0.0958333 15.5208 0 15.2833 0 15C0 14.7167 0.0958333 14.4792 0.2875 14.2875C0.479167 14.0958 0.716667 14 1 14H2.75L2.35 13.65C1.48333 12.8833 0.875 12.0083 0.525 11.025C0.175 10.0417 0 9.05 0 8.05C0 6.48333 0.4 5.0625 1.2 3.7875C2 2.5125 3.075 1.53333 4.425 0.85C4.65833 0.716667 4.90417 0.708333 5.1625 0.825C5.42083 0.941667 5.59167 1.13333 5.675 1.4C5.75833 1.65 5.75417 1.9 5.6625 2.15C5.57083 2.4 5.40833 2.59167 5.175 2.725C4.20833 3.25833 3.4375 3.99583 2.8625 4.9375C2.2875 5.87917 2 6.91667 2 8.05ZM14 7.95C14 7.2 13.8583 6.47083 13.575 5.7625C13.2917 5.05417 12.85 4.4 12.25 3.8L12 3.55V5C12 5.28333 11.9042 5.52083 11.7125 5.7125C11.5208 5.90417 11.2833 6 11 6C10.7167 6 10.4792 5.90417 10.2875 5.7125C10.0958 5.52083 10 5.28333 10 5V1C10 0.716667 10.0958 0.479167 10.2875 0.2875C10.4792 0.0958333 10.7167 0 11 0H15C15.2833 0 15.5208 0.0958333 15.7125 0.2875C15.9042 0.479167 16 0.716667 16 1C16 1.28333 15.9042 1.52083 15.7125 1.7125C15.5208 1.90417 15.2833 2 15 2H13.25L13.65 2.35C14.4667 3.16667 15.0625 4.05417 15.4375 5.0125C15.8125 5.97083 16 6.95 16 7.95C16 9.51667 15.6 10.9375 14.8 12.2125C14 13.4875 12.925 14.4667 11.575 15.15C11.3417 15.2833 11.0958 15.2917 10.8375 15.175C10.5792 15.0583 10.4083 14.8667 10.325 14.6C10.2417 14.35 10.2458 14.1 10.3375 13.85C10.4292 13.6 10.5917 13.4083 10.825 13.275C11.7917 12.7417 12.5625 12.0042 13.1375 11.0625C13.7125 10.1208 14 9.08333 14 7.95Z"
+                                  fill="#656565"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_a">A</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_a(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_a(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_a"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_a(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+            </div>
+            <div class="px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_b">B</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_b(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_b(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_b"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_b(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+            </div>
+
+            <div class="px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_c">C</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_c(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_c(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_c"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_c(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+            </div>
+            <div class="px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_d">D</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_d(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_d(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_d"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_d(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="lg:py-10">
+            <div class="my-4">
+                <label class="font-bold w-full block my-2 text-lg" for="scripts">Load Scripts</label>
+                <div class="relative">
+                    <select id="scripts"
+                            class="!bg-[left_0.75rem_center] bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl ps-7 w-full focus-visible:outline-none py-1 focus:border-custom-blue">
+                        <option class="rounded-none text-custom-black" value=""></option>
+                        {% for script in scripts %}
+                            <option class="ps-2 rounded-none text-custom-black"
+                                    value="{{ script.id }}">{{ script.name }} - {{ script.id.split("---")[1] }}</option>
+                        {% endfor %}
+                    </select>
+                    <button onclick="event.preventDefault(); loadOldScript();"
+                            class="p-2 inline absolute right-0.5 top-0.5">
+                        <svg class="size-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 8.05C2 8.8 2.14167 9.52917 2.425 10.2375C2.70833 10.9458 3.15 11.6 3.75 12.2L4 12.45V11C4 10.7167 4.09583 10.4792 4.2875 10.2875C4.47917 10.0958 4.71667 10 5 10C5.28333 10 5.52083 10.0958 5.7125 10.2875C5.90417 10.4792 6 10.7167 6 11V15C6 15.2833 5.90417 15.5208 5.7125 15.7125C5.52083 15.9042 5.28333 16 5 16H1C0.716667 16 0.479167 15.9042 0.2875 15.7125C0.0958333 15.5208 0 15.2833 0 15C0 14.7167 0.0958333 14.4792 0.2875 14.2875C0.479167 14.0958 0.716667 14 1 14H2.75L2.35 13.65C1.48333 12.8833 0.875 12.0083 0.525 11.025C0.175 10.0417 0 9.05 0 8.05C0 6.48333 0.4 5.0625 1.2 3.7875C2 2.5125 3.075 1.53333 4.425 0.85C4.65833 0.716667 4.90417 0.708333 5.1625 0.825C5.42083 0.941667 5.59167 1.13333 5.675 1.4C5.75833 1.65 5.75417 1.9 5.6625 2.15C5.57083 2.4 5.40833 2.59167 5.175 2.725C4.20833 3.25833 3.4375 3.99583 2.8625 4.9375C2.2875 5.87917 2 6.91667 2 8.05ZM14 7.95C14 7.2 13.8583 6.47083 13.575 5.7625C13.2917 5.05417 12.85 4.4 12.25 3.8L12 3.55V5C12 5.28333 11.9042 5.52083 11.7125 5.7125C11.5208 5.90417 11.2833 6 11 6C10.7167 6 10.4792 5.90417 10.2875 5.7125C10.0958 5.52083 10 5.28333 10 5V1C10 0.716667 10.0958 0.479167 10.2875 0.2875C10.4792 0.0958333 10.7167 0 11 0H15C15.2833 0 15.5208 0.0958333 15.7125 0.2875C15.9042 0.479167 16 0.716667 16 1C16 1.28333 15.9042 1.52083 15.7125 1.7125C15.5208 1.90417 15.2833 2 15 2H13.25L13.65 2.35C14.4667 3.16667 15.0625 4.05417 15.4375 5.0125C15.8125 5.97083 16 6.95 16 7.95C16 9.51667 15.6 10.9375 14.8 12.2125C14 13.4875 12.925 14.4667 11.575 15.15C11.3417 15.2833 11.0958 15.2917 10.8375 15.175C10.5792 15.0583 10.4083 14.8667 10.325 14.6C10.2417 14.35 10.2458 14.1 10.3375 13.85C10.4292 13.6 10.5917 13.4083 10.825 13.275C11.7917 12.7417 12.5625 12.0042 13.1375 11.0625C13.7125 10.1208 14 9.08333 14 7.95Z"
+                                  fill="#656565"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="5" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_e">E</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_e(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_e(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_e"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_e(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full" onclick="removePerson(5)"></div>
+            </div>
+            <div id="6" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_f">F</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_f(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_f(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_f"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_f(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full" onclick="removePerson(6)"></div>
+            </div>
+            <div id="7" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_g">G</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_g(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_g(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_g"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_g(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full" onclick="removePerson(7)"></div>
+            </div>
+            <div id="8" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_h">H</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_h(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_h(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_h"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_h(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full"
+                     onclick="removePerson(8)"></div>
+            </div>
+            <div id="9" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_i">I</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_i(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_i(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_i"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_i(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full"
+                     onclick="removePerson(9)"></div>
+            </div>
+            <div id="10" class="hidden px-4 pt-1 pb-2 my-4 border-custom-gray border-[3px] rounded-2xl relative">
+                <label class="mb-1 font-bold w-full inline-block text-4xl text-custom-light-gray"
+                       for="voice_j">J</label>
+                <div class="flex gap-3 w-full">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <img src="{{ url_for('static', filename='person.svg') }}" alt="mic"
+                                 class=" absolute size-4 top-2.5 left-2.5"/>
+                            {{ form.name_j(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                    focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                        <div class="mt-2 relative">
+                            <img src="{{ url_for('static', filename='microphone.svg') }}" alt="mic"
+                                 class=" absolute size-[18px] top-2.5 left-2"/>
+                            {{ form.voice_j(class="ps-7 bg-transparent text-custom-black border-custom-gray border-2 rounded-2xl w-full
+                                focus-visible:outline-none py-1 focus:border-custom-blue") }}
+                        </div>
+                    </div>
+                    <label for="image_i"
+                           class="mx-4 size-20 relative bg-[#CBCACA] flex justify-center items-center rounded-3xl border-4 border-custom-blue border-dashed cursor-pointer hover:bg-gray-300">
+                        <div class="flex flex-col items-center justify-center p-2">
+                            <img src="{{ url_for('static', filename='upload.png') }}" alt="upload"
+                                 class="size-full"/>
+                        </div>
+                        {{ form.image_j(class="h-full w-full absolute top-0 left-0 opacity-0 cursor-pointer") }}
+                    </label>
+                </div>
+                <div class="absolute top-3 right-3 bg-red-600 size-5 rounded-full"
+                     onclick="document.getElementById('10').classList.add('hidden')"></div>
+            </div>
+            <div id="plus" onclick="addPerson()"
+                 class="size-[140px] my-4 border-custom-blue border-[6px] rounded-2xl relative cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor"
+                     class="absolute size-full p-8 left-0 top-0 text-custom-gray"
+                     viewBox="0 0 448 512">
+                    <path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="lg:col-span-full py-10 px-4">
+            <h3 class="font-bold text-2xl my-2 lg:border-none lg:pb-0 border-b-2 border-custom-gray pb-3">Cheat
+                Sheet</h3>
+            <p class="lg:border-2 rounded-2xl min-h-64 border-custom-gray font-semibold text-custom-black py-4 lg:px-6">
+                Use <b class="text-custom-blue">x-</b> to specify the sender of the message<br>
+                Use <b class="text-custom-blue">undelivered-</b> for undelivered messages<br><br>
+
+                Use <b class="text-custom-blue">[!image.png!]</b> to include images<br><br>
+
+                To seperate screenshots use <b class="text-custom-blue">-$-</b><br><br>
+
+                For alternative Voiceover use <b class="text-custom-blue">|e|</b><br><br>
+                SFX before message: <b class="text-custom-blue">|b|</b> [sound]<br>
+                SFX after message: <b class="text-custom-blue">|a|</b> [sound]<br>
+                SFX during message: <b class="text-custom-blue">|ab|</b> [sound]<br>
+
+                <span class="block text-custom-blue mt-3 font-bold">Avaible SFX:</span>
+                {% for sound in sounds %}
+                    <code>{{ sound }},</code>
+                {% endfor %}
+
+            </p>
+
+        </div>
+    </form>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Listen for the change event on the file input field
+        document.getElementById('images').addEventListener('change', function () {
+            // Get the span element
+            let span = document.querySelector('#files');
+
+            // Get the names of the uploaded files
+            // Update the span with the names of the uploaded files
+            if (this.files.length === 0) {
+                span.textContent = '0 files uploaded';
+            } else if (this.files.length === 1) {
+                span.textContent = this.files[0].name;
+            } else if (this.files.length > 1) {
+                span.textContent = this.files.length + ' files uploaded';
+            }
+        });
+
+        // get all file inputs, except #images
+        // and when a file gets uploaded display that image instead of the dropbox
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            if (input.id !== 'images') {
+                input.addEventListener('change', function () {
+                    const file = this.files[0];
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.classList.add('absolute', 'p-1', 'rounded-xl', 'object-cover');
+                        input.parentElement.appendChild(img);
+                    }
+                    reader.readAsDataURL(file);
+                });
+            }
+        });
+    </script>
+{% endblock %}
