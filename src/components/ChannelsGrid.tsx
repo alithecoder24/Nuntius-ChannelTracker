@@ -147,17 +147,16 @@ export default function ChannelsGrid({ channels, onRemoveChannel, userTags, onUp
                     {Array.from({ length: flameCount }).map((_, i) => (
                       <Flame key={i} className="w-3.5 h-3.5" />
                     ))}
-                    <span className="ml-0.5">{formatNumber(channel.views1d)} / 24h</span>
+                    <span className="ml-0.5">{formatNumber(channel.views1d)} (24h)</span>
                   </div>
                 </div>
               )}
               
-              {/* Non-top-3 channels with 24h views still show a subtle badge */}
+              {/* Non-top-3 channels with 24h views - no flame, just views text */}
               {!isTop3 && (channel.views1d ?? 0) > 0 && (
                 <div className="absolute -left-1 -top-2 z-10">
-                  <div className="px-2 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 bg-[rgba(168,85,247,0.12)] text-[#c084fc] border border-[rgba(168,85,247,0.25)]">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>{formatNumber(channel.views1d)} / 24h</span>
+                  <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgba(168,85,247,0.12)] text-[#c084fc] border border-[rgba(168,85,247,0.25)]">
+                    <span>{formatNumber(channel.views1d)} (24h)</span>
                   </div>
                 </div>
               )}
