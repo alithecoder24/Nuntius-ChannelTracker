@@ -39,18 +39,10 @@ const VOICES = [
   { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi' },
 ];
 
-// Shared ClipMix library (C:\Nuntius\assets\VideoClipMix\)
+// Shared ClipMix library (C:\Nuntius-Clip-Mix\)
+// Add more entries here when you add new clips to the folder
 const CLIP_BACKGROUNDS = [
-  { id: 'Mix_2', name: '🥐 Cookim' },
-  { id: 'Mix_3', name: '🎂 CakeTown' },
-  { id: 'Mix_4', name: '😌 Satisfying' },
-  { id: 'Mix_5', name: '💰 MoreLife' },
-  { id: 'Mix_6', name: '💸 Prosper' },
-  { id: 'Mix_7', name: '🐸 Green' },
-  { id: 'Mix_8', name: '💔 Views' },
-  { id: 'Mix_9', name: '💗 Broken' },
-  { id: 'Mix_10', name: '🖕 FuckOddly' },
-  { id: 'Mix_11', name: '🎮 Minecraft' },
+  { id: 'Mix_1', name: '🎬 Mix 1' },
 ];
 
 // Custom styled select component

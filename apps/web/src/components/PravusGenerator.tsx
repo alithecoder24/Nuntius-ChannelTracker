@@ -189,17 +189,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const [workerStatus, setWorkerStatus] = useState<'online' | 'busy' | 'offline'>('offline');
   
   // Background videos (ClipMix)
+  // Shared ClipMix library (C:\Nuntius-Clip-Mix\)
+  // Add more entries here when you add new clips to the folder
   const [clipMixes, setClipMixes] = useState<{id: string; name: string; emoji: string}[]>([
-    { id: 'Mix_2', name: 'Cookim', emoji: '🥐' },
-    { id: 'Mix_3', name: 'CakeTown', emoji: '🎂' },
-    { id: 'Mix_4', name: 'Satisfying', emoji: '😌' },
-    { id: 'Mix_5', name: 'MoreLife', emoji: '💰' },
-    { id: 'Mix_6', name: 'Prosper', emoji: '💸' },
-    { id: 'Mix_7', name: 'Green', emoji: '🐸' },
-    { id: 'Mix_8', name: 'Views', emoji: '💔' },
-    { id: 'Mix_9', name: 'Broken', emoji: '💗' },
-    { id: 'Mix_10', name: 'FuckOddly', emoji: '🖕' },
-    { id: 'Mix_11', name: 'Minecraft', emoji: '🎮' },
+    { id: 'Mix_1', name: 'Mix 1', emoji: '🎬' },
   ]);
 
   // Get available voices based on provider selection
