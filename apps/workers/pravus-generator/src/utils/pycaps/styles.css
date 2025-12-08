@@ -1,0 +1,63 @@
+@font-face {
+  font-family: "Montserrat";
+  src: url("Montserrat-Black.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("noto.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Fredoka";
+  src: url("Fredoka_SemiCondensed-Bold.ttf") format("truetype");
+}
+
+.word {
+  font-size: 52px;
+  color: #ffffff;
+  font-weight: 900;
+  text-shadow: -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000,
+    3px 3px 0 #000, -3px 0 0 #000, 3px 0 0 #000, 0 -3px 0 #000, 0 3px 0 #000,
+    4px 4px 6px rgba(0, 0, 0, 0.7);
+  padding: 8px;
+  font-family: "Noto Sans";
+}
+
+.word.montserrat {
+  font-family: "Montserrat", "Noto Sans";
+}
+
+.word.fredoka {
+  font-family: "Fredoka", "Noto Sans";
+}
+
+/* Rainbow colors for title text - only apply when BOTH tags are present */
+.word.rainbow-word-0.in-title {
+  color: #00ff00;
+}
+
+.word.rainbow-word-1.in-title {
+  color: #00ffff;
+}
+
+.word.rainbow-word-2.in-title {
+  color: #ff00ff;
+}
+
+.word.rainbow-word-3.in-title {
+  color: #fff000;
+}
+
+/* Size adjustments for long words */
+.word.small {
+  font-size: 36px;
+}
+
+.word.smaller {
+  font-size: 32px;
+}
+
+.word.smallest {
+  font-size: 28px;
+}

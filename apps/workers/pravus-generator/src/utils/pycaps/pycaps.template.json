@@ -1,0 +1,36 @@
+{
+  "css": "styles.css",
+  "resources": "../../assets/",
+  "layout": {
+    "max_width_ratio": 0.7,
+    "max_number_of_lines": 1,
+    "vertical_align": {
+      "align": "center"
+    }
+  },
+  "animations": [
+    {
+      "type": "zoom_in_primitive",
+      "when": "narration-starts",
+      "what": "line",
+      "duration": 1.1,
+      "init_scale": 0.6,
+      "overshoot": {
+        "amount": 0.0,
+        "peak_at": 0.99
+      },
+      "transformer": "ease_out"
+    }
+  ],
+  "splitters": [
+    {
+      "type": "split_into_sentences",
+      "sentences_separators": [".", "!", "?"]
+    },
+    {
+      "type": "limit_by_chars",
+      "min_chars": 2,
+      "max_chars": 8
+    }
+  ]
+}

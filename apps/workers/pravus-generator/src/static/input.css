@@ -1,0 +1,25 @@
+@import "tailwindcss";
+@plugin "flowbite/plugin";
+@source "../../node_modules/flowbite";
+
+@theme {
+  --color-custom-gray: #262626;
+  --color-custom-muted: #131313;
+  --color-custom-blue: #0a68fe;
+  --color-custom-green: #0fb684;
+  --color-custom-black: #232323;
+  --color-background: #0e0e0e;
+  --color-custom-primary: #893ef7;
+  --color-custom-text: #ffffff;
+  --color-custom-border: #ffffff;
+}
+
+/* Custom gradients */
+@utility bg-primary-gradient {
+  background: linear-gradient(
+      90deg,
+      rgba(137, 62, 247, 0.66) 0%,
+      rgba(0, 0, 0, 0.66) 100%
+    ),
+    #893ef7;
+}

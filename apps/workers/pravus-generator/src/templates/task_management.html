@@ -1,0 +1,257 @@
+<!-- Task Management Script -->
+<script>
+    // Keep track of tasks we're actively polling
+    let activePolls = new Set();
+
+    // Handle task cancellation/deletion via unified endpoint
+    function handleTaskAction(taskId, actionMessage) {
+        const dialog = document.getElementById('custom-confirm-dialog');
+        const confirmMessage = document.getElementById('confirm-message');
+        const confirmYesBtn = document.getElementById('confirm-yes-btn');
+        const confirmNoBtn = document.getElementById('confirm-no-btn');
+
+        confirmMessage.textContent = actionMessage;
+        dialog.classList.remove('hidden');
+        dialog.classList.add('flex');
+
+        confirmYesBtn.onclick = function () {
+            dialog.classList.add('hidden');
+            dialog.classList.remove('flex');
+
+            // Call unified task action endpoint
+            fetch(`/task_action/${taskId}`, {
+                method: 'POST'
+            })
+                .then(response => response.json())
+                .then(data => {
+                                        if (data.success) {
+                        if (data.action === 'deleted') {
+                            // Remove task from DOM
+                            const taskElement = document.getElementById(`completed-task-${taskId}`);
+                            if (taskElement) {
+                                taskElement.remove();
+
+                                // Check if there are no more completed tasks
+                                const finishedList = document.getElementById('finished-list');
+                                if (finishedList && finishedList.querySelectorAll('[id^="completed-task-"]').length === 0) {
+                                    finishedList.innerHTML = '<div class="text-sm text-custom-text/60 py-2 text-center">No completed tasks</div>';
+                                }
+                            }
+                        }
+                        setTimeout(() => window.location.reload(), 500);
+
+                    } else {
+                        alert(`Error: ${data.error || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error with task action:`, error);
+                    alert('Network error. Please try again.');
+                });
+        };
+
+        confirmNoBtn.onclick = function () {
+            dialog.classList.add('hidden');
+            dialog.classList.remove('flex');
+        };
+    }
+
+    // Function to cancel active tasks
+    function cancelTask(taskId) {
+        handleTaskAction(taskId, 'Are you sure you want to cancel this job? This action cannot be undone.');
+    }
+
+    // Function to delete completed tasks
+    function deleteCompletedTask(taskId) {
+        handleTaskAction(taskId, 'Are you sure you want to remove this task? Your output files will not be deleted.');
+    }
+
+
+    // Function to start monitoring a task's status
+    function startMonitoring(taskId) {
+        if (!taskId || activePolls.has(taskId)) return;
+        activePolls.add(taskId);
+        updateTaskStatus(taskId);
+    } 
+    
+    function openTaskFolder(taskId, event) {
+        // Check if the clicked element is the delete button or its child elements
+        if (event && (event.target.closest('button[onclick*="deleteCompletedTask"]') ||
+            event.target.classList.contains('delete-button') ||
+            event.target.closest('.delete-button'))) {
+            console.log("Delete button clicked, not opening folder");
+            return;
+        }
+
+        fetch(`/open_folder/${taskId}`, {
+            method: 'GET'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Opened folder for task ${taskId}: ${data.path}`);
+                } else {
+                    console.error('Failed to open folder:', data.error);
+                    alert('Failed to open folder: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error opening folder:', error);
+                alert('Error opening folder: ' + error.message);
+            });
+    }
+
+    // Function to update task status via API
+    function updateTaskStatus(taskId) {
+        fetch(`/task_status/${taskId}`)
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        activePolls.delete(taskId);
+                        return null;
+                    }
+                    throw new Error(`Network error: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data) return;
+
+                // Get task element
+                let taskElement = document.getElementById(`task-${taskId}`);
+
+                // If task is completed or cancelled, refresh the page
+                if ((data.status === 'complete' || data.status === 'cancelled') && taskElement) {
+                    window.location.reload();
+                    return;
+                }
+
+                // Update task element
+                if (taskElement) {
+                    // Update status text
+                    const statusElement = taskElement.querySelector('span[class*="text-"]');
+                    if (statusElement) {
+                        let statusText = data.stage || data.status;
+                        let statusClass = data.status === 'processing' ? 'text-purple-500' : 'text-blue-500';
+
+if (data.status === 'error') {
+                            statusClass = 'text-red-500';
+                            statusText = 'Error';
+                        }
+
+                        statusElement.className = statusClass;
+                        statusElement.textContent = statusText;
+                    }
+                }
+
+                // Continue polling if task is still active
+                if (data.status === 'initializing' || data.status === 'processing') {
+                    setTimeout(() => {
+                        if (activePolls.has(taskId)) {
+                            updateTaskStatus(taskId);
+                        }
+                    }, 2000);
+                } else {
+                    activePolls.delete(taskId);
+                }
+            })
+            .catch(error => {
+                console.error(`Error polling task ${taskId}:`, error);
+                setTimeout(() => {
+                    if (activePolls.has(taskId)) {
+                        updateTaskStatus(taskId);
+                    }
+                }, 5000);
+            });
+    }
+
+    // Update task elapsed times
+    function updateTaskTimes() {
+        document.querySelectorAll('.task-time').forEach(timeElement => {
+            const timestamp = timeElement.getAttribute('data-timestamp');
+            const endTimestamp = timeElement.getAttribute('data-end-timestamp');
+            const isCompleted = timeElement.getAttribute('data-completed') === 'true';
+
+            if (!timestamp) return;
+
+            try {
+                const taskStartDate = new Date(timestamp);
+                const now = new Date();
+
+                if (isNaN(taskStartDate.getTime())) return;
+
+                // Only update active task times
+                if (!isCompleted) {
+                    const diffMs = now - taskStartDate;
+                    let totalSeconds = Math.floor(diffMs / 1000);
+                    if (totalSeconds < 0) totalSeconds = 0;
+
+                    let hours = Math.floor(totalSeconds / 3600);
+                    totalSeconds %= 3600;
+                    let minutes = Math.floor(totalSeconds / 60);
+                    let seconds = totalSeconds % 60;
+
+                    let elapsedTimeString = '';
+                    if (hours > 0) {
+                        elapsedTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    } else {
+                        elapsedTimeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    }
+
+                    timeElement.textContent = elapsedTimeString;
+                }
+            } catch (err) {
+                console.error("Error updating time element:", err);
+            }
+        });
+    }
+
+    // Initialize task monitoring
+    document.addEventListener('DOMContentLoaded', function () {
+        // Start monitoring active tasks
+        document.querySelectorAll('[id^="task-"]').forEach(taskElement => {
+            const taskId = taskElement.id.replace('task-', '');
+            startMonitoring(taskId);
+        });
+
+        // Update times every second
+        setInterval(updateTaskTimes, 1000);
+
+        // Fix completed task durations if needed
+        document.querySelectorAll('.task-time[data-completed="true"]').forEach(timeElement => {
+            const content = timeElement.textContent.trim();
+            if (content.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/) || content === '') {
+                const timestamp = timeElement.getAttribute('data-timestamp');
+                const endTimestamp = timeElement.getAttribute('data-end-timestamp');
+
+                if (timestamp && endTimestamp) {
+                    try {
+                        const startDate = new Date(timestamp);
+                        const endDate = new Date(endTimestamp);
+
+                        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                            const durationMs = endDate - startDate;
+                            const durationSec = Math.round(durationMs / 1000);
+                            const durationMin = Math.round(durationSec / 60);
+                            const durationHour = Math.floor(durationMin / 60);
+                            const remainingMin = durationMin % 60;
+
+                            let duration = '';
+                            if (durationHour > 0) {
+                                duration = `${durationHour}h ${remainingMin}m`;
+                            } else if (durationMin > 0) {
+                                duration = `${durationMin}m`;
+                            } else {
+                                duration = `${durationSec}s`;
+                            }
+
+                            timeElement.textContent = duration;
+                        }
+                    } catch (err) {
+                        console.error("Error calculating task duration:", err);
+                    }
+                }
+            }
+        });
+    });
+</script>
