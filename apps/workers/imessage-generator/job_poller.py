@@ -13,12 +13,15 @@ import sys
 import time
 import json
 import traceback
+import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import boto3
+from botocore.config import Config
 from supabase import create_client, Client
 from video import VideoGenerator, Data
 from utils import Person
@@ -36,8 +39,72 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Cloudflare R2 configuration
+R2_ACCOUNT_ID = os.getenv('R2_ACCOUNT_ID')
+R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
+R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
+R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME', 'nuntius-videos')
+
+# Initialize R2 client (S3-compatible)
+r2_client = None
+if R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY:
+    r2_client = boto3.client(
+        's3',
+        endpoint_url=f'https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com',
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        config=Config(signature_version='s3v4'),
+        region_name='auto'
+    )
+    print("  R2 Storage: Enabled")
+else:
+    print("  R2 Storage: Disabled (missing credentials)")
+
 POLL_INTERVAL = 10  # seconds
 SCRIPTS_PATH = 'scripts'
+
+def upload_to_r2(file_path: str, job_id: str) -> str:
+    """Upload a file to Cloudflare R2 and return the public URL"""
+    if not r2_client:
+        print("  R2 not configured, skipping upload")
+        return None
+    
+    try:
+        # Generate a unique filename
+        file_ext = os.path.splitext(file_path)[1]
+        remote_filename = f"{job_id}{file_ext}"
+        
+        print(f"  Uploading to R2: {remote_filename}...")
+        
+        # Upload the file
+        with open(file_path, 'rb') as f:
+            r2_client.upload_fileobj(
+                f,
+                R2_BUCKET_NAME,
+                remote_filename,
+                ExtraArgs={
+                    'ContentType': 'video/mp4',
+                    'ContentDisposition': f'attachment; filename="{os.path.basename(file_path)}"'
+                }
+            )
+        
+        # Generate a presigned URL (valid for 24 hours)
+        url = r2_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': R2_BUCKET_NAME,
+                'Key': remote_filename
+            },
+            ExpiresIn=86400  # 24 hours
+        )
+        
+        print(f"  Upload complete! URL valid for 24h")
+        return url
+        
+    except Exception as e:
+        print(f"  Error uploading to R2: {e}")
+        traceback.print_exc()
+        return None
 
 def get_pending_jobs():
     """Fetch pending jobs from Supabase"""
@@ -176,13 +243,21 @@ def process_job(job: dict):
         
         if video_files:
             video_path = os.path.join(output_dir, video_files[0])
-            
-            # TODO: Upload to cloud storage (S3/Supabase Storage) and get URL
-            # For now, just mark as completed with local path
-            output_url = f"file://{os.path.abspath(video_path)}"
-            
             print(f"Video generated: {video_path}")
-            update_job_status(job_id, 'completed', 100, output_url=output_url)
+            
+            update_job_status(job_id, 'processing', 95)
+            
+            # Upload to R2 cloud storage
+            output_url = upload_to_r2(video_path, job_id)
+            
+            if output_url:
+                print(f"  Download URL ready!")
+                update_job_status(job_id, 'completed', 100, output_url=output_url)
+            else:
+                # Fallback to local path if R2 upload fails
+                output_url = f"file://{os.path.abspath(video_path)}"
+                print(f"  Using local path (R2 upload failed)")
+                update_job_status(job_id, 'completed', 100, output_url=output_url)
         else:
             update_job_status(job_id, 'failed', error_message='No output video found')
         
