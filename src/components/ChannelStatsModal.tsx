@@ -340,7 +340,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" />
             </div>
-          ) : dailyData.length > 1 ? (
+          ) : dailyData.length >= 1 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dailyData}>
                 <defs>
