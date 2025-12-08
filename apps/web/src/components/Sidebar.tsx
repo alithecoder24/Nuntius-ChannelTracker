@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Lock, Users } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Lock, Users, MessageSquare, Wrench } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 
 interface Profile {
@@ -14,7 +14,9 @@ interface Profile {
 interface SidebarProps {
   profiles: Profile[];
   activeProfile: string | null;
+  activeTool: string | null;
   onProfileSelect: (id: string) => void;
+  onToolSelect: (tool: string) => void;
   onNewProfile: () => void;
   onRenameProfile?: (id: string, newName: string) => void;
   onDeleteProfile?: (id: string) => void;
@@ -24,7 +26,9 @@ interface SidebarProps {
 export default function Sidebar({ 
   profiles, 
   activeProfile, 
+  activeTool,
   onProfileSelect,
+  onToolSelect,
   onNewProfile,
   onRenameProfile,
   onDeleteProfile,
@@ -203,7 +207,7 @@ export default function Sidebar({
         <div className="mx-3 my-2 h-px bg-gradient-to-r from-transparent via-[rgba(168,85,247,0.2)] to-transparent" />
 
         {/* New Profile Button */}
-        <div className="p-3">
+        <div className="px-3 pb-3">
           <button
             onClick={onNewProfile}
             className="w-full h-10 rounded-xl text-[14px] font-medium text-[#71717a] hover:text-[#c084fc] inline-flex items-center justify-center gap-2 transition-all duration-150 border border-dashed border-[rgba(113,113,122,0.3)] hover:border-[rgba(168,85,247,0.4)] hover:bg-[rgba(168,85,247,0.05)]"
@@ -211,6 +215,34 @@ export default function Sidebar({
             <Plus className="w-4 h-4" />
             New Profile
           </button>
+        </div>
+
+        {/* Separator */}
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-[rgba(168,85,247,0.2)] to-transparent" />
+
+        {/* Tools Section */}
+        <div className="px-4 pt-4 pb-2">
+          <span className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider flex items-center gap-1.5">
+            <Wrench className="w-3 h-3" />
+            Tools
+          </span>
+        </div>
+
+        {/* Tools List */}
+        <div className="px-2 pb-4">
+          <nav className="space-y-1">
+            <button
+              onClick={() => onToolSelect('imessage-generator')}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-150 flex items-center gap-2 ${
+                activeTool === 'imessage-generator'
+                  ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80] border border-[rgba(34,197,94,0.3)]'
+                  : 'text-[#a1a1aa] hover:text-[#f8fafc] hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              iMessage Gen
+            </button>
+          </nav>
         </div>
       </aside>
 
