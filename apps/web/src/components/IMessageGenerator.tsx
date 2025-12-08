@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Upload, Globe } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MessageSquare, Clock, CheckCircle2, XCircle, Loader2, Moon, Sun, Plus, Trash2, Download } from 'lucide-react';
+import { createVideoJob, getVideoJobs, subscribeToVideoJobs, type VideoJob } from '@/lib/supabase';
 
 interface Person {
   id: string;
@@ -9,14 +10,8 @@ interface Person {
   voice: string;
 }
 
-interface Job {
-  id: string;
-  name: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress?: number;
-  createdAt: string;
-  error?: string;
-  videoUrl?: string;
+interface IMessageGeneratorProps {
+  userId: string;
 }
 
 const LANGUAGES = [
@@ -25,19 +20,21 @@ const LANGUAGES = [
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
 ];
 
-// These would come from ElevenLabs API in the real implementation
-const SAMPLE_VOICES = [
-  { id: 'voice1', name: 'Rachel' },
-  { id: 'voice2', name: 'Drew' },
-  { id: 'voice3', name: 'Clyde' },
-  { id: 'voice4', name: 'Paul' },
-  { id: 'voice5', name: 'Domi' },
-  { id: 'voice6', name: 'Dave' },
-  { id: 'voice7', name: 'Fin' },
-  { id: 'voice8', name: 'Sarah' },
+// ElevenLabs voice IDs - these are real voice IDs from ElevenLabs
+const VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
+  { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi' },
 ];
 
-export default function IMessageGenerator() {
+export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
   const [projectName, setProjectName] = useState('');
   const [script, setScript] = useState('');
   const [darkMode, setDarkMode] = useState(false);
@@ -47,11 +44,44 @@ export default function IMessageGenerator() {
     { id: 'b', name: '', voice: '' },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<VideoJob[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load existing jobs on mount
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadJobs = async () => {
+      try {
+        const existingJobs = await getVideoJobs(userId);
+        if (mounted) setJobs(existingJobs);
+      } catch (err) {
+        console.error('Error loading jobs:', err);
+      }
+    };
+    
+    loadJobs();
+    
+    // Subscribe to real-time updates
+    const subscription = subscribeToVideoJobs(userId, (updatedJob) => {
+      setJobs(prev => {
+        const exists = prev.find(j => j.id === updatedJob.id);
+        if (exists) {
+          return prev.map(j => j.id === updatedJob.id ? updatedJob : j);
+        }
+        return [updatedJob, ...prev];
+      });
+    });
+    
+    return () => {
+      mounted = false;
+      subscription.then(sub => sub.unsubscribe());
+    };
+  }, [userId]);
 
   const addPerson = () => {
     if (people.length >= 10) return;
-    const nextId = String.fromCharCode(97 + people.length); // a, b, c, ...
+    const nextId = String.fromCharCode(97 + people.length);
     setPeople([...people, { id: nextId, name: '', voice: '' }]);
   };
 
@@ -66,37 +96,39 @@ export default function IMessageGenerator() {
 
   const handleSubmit = async () => {
     if (!projectName.trim() || !script.trim()) {
-      alert('Please enter a project name and script');
+      setError('Please enter a project name and script');
       return;
     }
 
-    // Check that at least first two people have names and voices
     if (!people[0].name || !people[0].voice || !people[1].name || !people[1].voice) {
-      alert('Please configure at least the first two people (names and voices)');
+      setError('Please configure at least the first two people (names and voices)');
       return;
     }
 
+    setError(null);
     setIsSubmitting(true);
     
-    // TODO: Submit to Supabase video_jobs table
-    const newJob: Job = {
-      id: crypto.randomUUID(),
-      name: projectName,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    
-    setJobs([newJob, ...jobs]);
-    
-    // Simulate job creation
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const newJob = await createVideoJob(userId, {
+        project_name: projectName,
+        script: script,
+        dark_mode: darkMode,
+        language: language,
+        people: people.filter(p => p.name && p.voice),
+      });
+      
+      setJobs([newJob, ...jobs]);
       setProjectName('');
-      // Don't clear script - user might want to generate variations
-    }, 500);
+      // Keep script for variations
+    } catch (err) {
+      console.error('Error creating job:', err);
+      setError('Failed to create job. Make sure the video_jobs table exists in Supabase.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const getStatusIcon = (status: Job['status']) => {
+  const getStatusIcon = (status: VideoJob['status']) => {
     switch (status) {
       case 'pending':
         return <Clock className="w-5 h-5 text-[#fbbf24]" />;
@@ -109,17 +141,29 @@ export default function IMessageGenerator() {
     }
   };
 
-  const getStatusText = (job: Job) => {
+  const getStatusText = (job: VideoJob) => {
     switch (job.status) {
       case 'pending':
         return 'Waiting for worker...';
       case 'processing':
-        return `Processing${job.progress ? ` (${job.progress}%)` : '...'}`;
+        return `Processing${job.progress > 0 ? ` (${job.progress}%)` : '...'}`;
       case 'completed':
         return 'Ready to download';
       case 'failed':
-        return job.error || 'Failed';
+        return job.error_message || 'Failed';
     }
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -135,6 +179,12 @@ export default function IMessageGenerator() {
             <p className="text-[#71717a] text-sm">Generate realistic iMessage conversation videos with AI voices</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] text-[#f87171] text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Form */}
         <div className="space-y-6">
@@ -152,9 +202,7 @@ export default function IMessageGenerator() {
               />
             </div>
             
-            {/* Settings */}
             <div className="flex gap-3">
-              {/* Dark Mode Toggle */}
               <div className="flex-1">
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Theme</label>
                 <button
@@ -170,7 +218,6 @@ export default function IMessageGenerator() {
                 </button>
               </div>
 
-              {/* Language */}
               <div className="flex-1">
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">Language</label>
                 <select
@@ -203,7 +250,7 @@ export default function IMessageGenerator() {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {people.map((person, idx) => (
+              {people.map((person) => (
                 <div
                   key={person.id}
                   className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] space-y-2"
@@ -235,7 +282,7 @@ export default function IMessageGenerator() {
                     className="w-full px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.1)] text-[#f8fafc] text-sm focus:outline-none focus:border-[rgba(34,197,94,0.3)] appearance-none cursor-pointer"
                   >
                     <option value="">Select voice...</option>
-                    {SAMPLE_VOICES.map(voice => (
+                    {VOICES.map(voice => (
                       <option key={voice.id} value={voice.id}>{voice.name}</option>
                     ))}
                   </select>
@@ -252,7 +299,7 @@ export default function IMessageGenerator() {
               onChange={(e) => setScript(e.target.value)}
               placeholder={`Enter your conversation script...
 
-Format:
+Format (use the person names you set above):
 A: Hey, what's up?
 B: Not much, just chilling
 x-A: This message is from the sender (blue bubble)
@@ -284,8 +331,8 @@ Special features:
               Generate Video
             </button>
             <div className="flex items-center gap-2 text-[#52525b] text-sm">
-              <div className="w-2 h-2 rounded-full bg-[#4ade80] animate-pulse" />
-              <span>Your PC worker must be running</span>
+              <div className="w-2 h-2 rounded-full bg-[#fbbf24] animate-pulse" />
+              <span>Worker must be running on your PC</span>
             </div>
           </div>
         </div>
@@ -311,18 +358,26 @@ Special features:
                 <div className="flex items-center gap-4">
                   {getStatusIcon(job.status)}
                   <div>
-                    <p className="text-[#f8fafc] font-medium">{job.name}</p>
-                    <p className="text-[#71717a] text-sm">{getStatusText(job)}</p>
+                    <p className="text-[#f8fafc] font-medium">{job.input_data.project_name}</p>
+                    <p className="text-[#71717a] text-sm">
+                      {getStatusText(job)} • {formatTime(job.created_at)}
+                    </p>
                   </div>
                 </div>
                 
-                {job.status === 'completed' && (
-                  <button className="px-4 py-2 rounded-xl text-sm font-medium text-[#4ade80] bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.25)] hover:bg-[rgba(34,197,94,0.2)] transition-colors">
+                {job.status === 'completed' && job.output_url && (
+                  <a
+                    href={job.output_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl text-sm font-medium text-[#4ade80] bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.25)] hover:bg-[rgba(34,197,94,0.2)] transition-colors inline-flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
                     Download
-                  </button>
+                  </a>
                 )}
                 
-                {job.status === 'processing' && job.progress !== undefined && (
+                {job.status === 'processing' && job.progress > 0 && (
                   <div className="w-24 h-2 bg-[rgba(15,12,25,0.6)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] transition-all duration-300"
@@ -369,4 +424,3 @@ Special features:
     </div>
   );
 }
-

@@ -260,3 +260,74 @@ export async function deleteTagFromAllChannels(tagToDelete: string): Promise<voi
   
   if (error) throw error;
 }
+
+// ============================================
+// VIDEO JOBS FUNCTIONS
+// ============================================
+
+export interface VideoJob {
+  id: string;
+  user_id: string;
+  tool_type: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  input_data: {
+    project_name: string;
+    script: string;
+    dark_mode: boolean;
+    language: string;
+    people: { id: string; name: string; voice: string }[];
+  };
+  output_url: string | null;
+  error_message: string | null;
+  progress: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export async function createVideoJob(userId: string, inputData: VideoJob['input_data']): Promise<VideoJob> {
+  const { data, error } = await supabase
+    .from('video_jobs')
+    .insert({
+      user_id: userId,
+      tool_type: 'imessage-generator',
+      status: 'pending',
+      input_data: inputData,
+      progress: 0,
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as VideoJob;
+}
+
+export async function getVideoJobs(userId: string): Promise<VideoJob[]> {
+  const { data, error } = await supabase
+    .from('video_jobs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  
+  if (error) throw error;
+  return data as VideoJob[];
+}
+
+export async function subscribeToVideoJobs(userId: string, callback: (job: VideoJob) => void) {
+  return supabase
+    .channel('video_jobs_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'video_jobs',
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => {
+        callback(payload.new as VideoJob);
+      }
+    )
+    .subscribe();
+}

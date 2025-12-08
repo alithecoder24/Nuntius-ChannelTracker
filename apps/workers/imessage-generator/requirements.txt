@@ -9,3 +9,4 @@ ffmpeg-python~=0.2.0
 pydub~=0.25.1
 pilmoji==2.0.4
 emoji==2.11.1
+supabase~=2.0.0

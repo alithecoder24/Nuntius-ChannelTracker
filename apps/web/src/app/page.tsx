@@ -547,8 +547,8 @@ export default function Home() {
         {/* Main Content */}
         <main className="flex-1 relative z-[1] min-w-0">
           {/* Tool View */}
-          {activeTool === 'imessage-generator' ? (
-            <IMessageGenerator />
+          {activeTool === 'imessage-generator' && user ? (
+            <IMessageGenerator userId={user.id} />
           ) : (
           <div className="w-full space-y-6">
             <FilterSection filters={filters} onFilterChange={setFilters} />
