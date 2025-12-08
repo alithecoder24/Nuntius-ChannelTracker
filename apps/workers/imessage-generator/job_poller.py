@@ -106,13 +106,18 @@ def process_job(job: dict):
         os.makedirs(job_folder, exist_ok=True)
         
         # Create Person objects from job data
+        # The script uses A:, B:, C:, etc. so we need to map person IDs to names
         people = []
         for i, p in enumerate(people_data):
+            # Use the person ID (a, b, c...) as the name for script matching
+            # The voice and display name come from the job data
+            person_id = p.get('id', chr(97 + i))  # 'a', 'b', 'c', etc.
             people.append(Person(
                 voice=p.get('voice'),
-                name=p.get('name'),
+                name=person_id,  # Use 'a', 'b', 'c' to match script format A:, B:, C:
                 image=None  # No profile images from web UI yet
             ))
+            print(f"  Person {person_id.upper()}: voice={p.get('voice')}")
         
         # Pad to 10 people (required by the generator)
         while len(people) < 10:
