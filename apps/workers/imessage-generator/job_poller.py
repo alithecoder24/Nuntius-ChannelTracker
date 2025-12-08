@@ -14,6 +14,7 @@ import time
 import json
 import traceback
 import uuid
+import shutil
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -286,10 +287,18 @@ def process_job(job: dict):
             if output_url:
                 print(f"  Download URL ready!")
                 update_job_status(job_id, 'completed', 100, output_url=output_url)
+                
+                # Clean up local files after successful R2 upload
+                try:
+                    if os.path.exists(output_dir):
+                        shutil.rmtree(output_dir)
+                        print(f"  Cleaned up local files: {output_dir}")
+                except Exception as cleanup_err:
+                    print(f"  Warning: Could not clean up local files: {cleanup_err}")
             else:
-                # Fallback to local path if R2 upload fails
+                # Fallback to local path if R2 upload fails (keep local files)
                 output_url = f"file://{os.path.abspath(video_path)}"
-                print(f"  Using local path (R2 upload failed)")
+                print(f"  Using local path (R2 upload failed, keeping local files)")
                 update_job_status(job_id, 'completed', 100, output_url=output_url)
         else:
             update_job_status(job_id, 'failed', error_message='No output video found')

@@ -759,6 +759,14 @@ B: Cool!`}
                     onClick={async () => {
                       if (confirm('Delete this job? The video file will also be removed.')) {
                         try {
+                          // Delete from R2 first if there's a video
+                          if (job.output_url) {
+                            await fetch('/api/r2/delete', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ jobId: job.id }),
+                            });
+                          }
                           await deleteVideoJob(job.id);
                           setJobs(prev => prev.filter(j => j.id !== job.id));
                         } catch (err) {
