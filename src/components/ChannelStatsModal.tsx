@@ -102,9 +102,11 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
         const currentSubs = parseInt(current.subscriber_count) || 0;
         const previousSubs = parseInt(previous.subscriber_count) || 0;
         
+        // Use the PREVIOUS snapshot's date since that's when the views were generated
+        // (the current snapshot just records the accumulated total)
         processed.push({
-          date: formatDate(current.created_at),
-          fullDate: current.created_at,
+          date: formatDate(previous.created_at),
+          fullDate: previous.created_at,
           views: currentViews,
           subscribers: currentSubs,
           viewsGained: Math.max(0, currentViews - previousViews),
