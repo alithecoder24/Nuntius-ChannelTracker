@@ -13,6 +13,38 @@ from src.utils.utils import custom_print
 
 FILE = "workflow"
 
+
+def get_task_manager():
+    """
+    Get task_manager from either main.py (Flask app) or builtins (job_poller).
+    Returns a mock object if neither is available.
+    """
+    try:
+        task_manager = get_task_manager()
+        return task_manager
+    except ImportError:
+        pass
+    
+    try:
+        import builtins
+        if hasattr(builtins, 'task_manager'):
+            return builtins.task_manager
+    except:
+        pass
+    
+    # Return a minimal mock that won't crash
+    class MinimalMockTaskManager:
+        def get_task(self, task_id):
+            return {"status": "processing", "output_folder": None}
+        def update_task(self, task_id, data):
+            return data
+        def check_and_start_queued_tasks(self):
+            pass
+        def update_file_progress(self, task_id, filename, status, progress):
+            pass
+    
+    return MinimalMockTaskManager()
+
 def clean_filename(title: str, max_length: int = 70) -> str:
     """
     Create a Windows-safe, human-readable filename from a title.
@@ -223,7 +255,7 @@ class WorkflowManager:
                         custom_print(FILE, f"Failed to process video: {base_name}", error=True)
                         
                     # Check if any queued tasks can be started after each video completes
-                    from main import task_manager
+                    task_manager = get_task_manager()
                     task_manager.check_and_start_queued_tasks()
                         
                 except Exception as e:
@@ -268,7 +300,7 @@ class WorkflowManager:
         }
         
         try:
-            from main import task_manager
+            task_manager = get_task_manager()
             from src.utils.task import TaskStatus
             
             # Helper function to resolve paths relative to base_dir
@@ -655,7 +687,7 @@ class WorkflowManager:
         try:
             # Check for task cancellation
             from src.utils.task import TaskStatus
-            from main import task_manager
+            task_manager = get_task_manager()
             task = task_manager.get_task(self.task_id)
             if task and task.get("status") == TaskStatus.CANCELLED:
                 custom_print(FILE, f"Task {self.task_id} was cancelled, stopping processing for {file_path}")
@@ -726,7 +758,7 @@ class WorkflowManager:
 
         except Exception as e:
             # Update individual file progress - failed
-            from main import task_manager as _tm
+            task_manager = get_task_manager() as _tm
             original_filename = filename_mapping.get(file_path, os.path.basename(file_path))
             _tm.update_file_progress(self.task_id, original_filename, "failed", 0)
             custom_print(FILE, f"Error processing audio file {file_path}: {str(e)}", error=True)
@@ -808,7 +840,7 @@ def _process_video_subprocess(base_name: str, video_data: Dict, mix_path: str,
         from src.utils.audio import get_audio_duration
         from src.utils.utils import custom_print as _cp
         from src.utils.task import TaskStatus
-        from main import task_manager
+        task_manager = get_task_manager()
 
         FILE = "workflow_subprocess"
 
@@ -924,7 +956,7 @@ def update_task_status(task_id, status=None, stage=None, message=None, progress=
         
     try:
         from src.utils.task import TaskStatus
-        from main import task_manager
+        task_manager = get_task_manager()
         
         task = task_manager.get_task(task_id)
         if not task:

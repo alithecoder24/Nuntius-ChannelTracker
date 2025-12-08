@@ -9,10 +9,15 @@ import time
 import json
 import traceback
 import shutil
+import uuid
 from datetime import datetime
+from typing import Dict, Any, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# Add current directory to path for imports
+sys.path.insert(0, os.path.dirname(__file__))
 
 # Supabase setup
 from supabase import create_client, Client
@@ -56,8 +61,82 @@ VIDEO_CLIP_MIX_DIR = os.getenv('CLIP_MIX_PATH', 'C:/Nuntius-Clip-Mix')
 MUSIC_DIR = os.getenv('MUSIC_PATH', 'C:/Nuntius/assets/Music')
 
 # Local paths
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'output')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
+PROFILE_DIR = os.path.join(ASSETS_DIR, 'Profiles')
 POLL_INTERVAL = 5  # seconds
+
+# Ensure directories exist
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(ASSETS_DIR, exist_ok=True)
+os.makedirs(PROFILE_DIR, exist_ok=True)
+
+# ============================================
+# MOCK TASK MANAGER (replaces Flask task_manager)
+# ============================================
+
+class TaskStatus:
+    """Task status constants"""
+    INITIALIZING = "initializing"
+    PROCESSING = "processing"
+    COMPLETE = "complete"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+
+
+class MockTaskManager:
+    """
+    Mock task manager that mimics the Flask app's task_manager.
+    Stores task state in memory and syncs status to Supabase.
+    """
+    
+    def __init__(self):
+        self.tasks: Dict[str, Dict[str, Any]] = {}
+    
+    def create_task(self, task_id: str, initial_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Create a new task"""
+        task = {
+            "id": task_id,
+            "status": TaskStatus.INITIALIZING,
+            "message": "Initializing...",
+            "stage": "Initializing",
+            "progress": 0,
+            "output_folder": None,
+            "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            **(initial_data or {})
+        }
+        self.tasks[task_id] = task
+        return task
+    
+    def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get task by ID"""
+        return self.tasks.get(task_id)
+    
+    def update_task(self, task_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update task data"""
+        if task_id in self.tasks:
+            self.tasks[task_id].update(updates)
+            return self.tasks[task_id]
+        return None
+    
+    def cancel_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Cancel a task"""
+        if task_id in self.tasks:
+            self.tasks[task_id]["status"] = TaskStatus.CANCELLED
+            return self.tasks[task_id]
+        return None
+    
+    def delete_task(self, task_id: str) -> bool:
+        """Delete a task"""
+        if task_id in self.tasks:
+            del self.tasks[task_id]
+            return True
+        return False
+
+
+# Global task manager instance
+task_manager = MockTaskManager()
 
 # ============================================
 # HEARTBEAT FUNCTION
@@ -155,6 +234,64 @@ def update_job_status(job_id: str, status: str, progress: int = 0, error_message
         print(f"Error updating job: {e}")
 
 # ============================================
+# PROFILE CREATION
+# ============================================
+
+def create_temp_profile(job_id: str, input_data: Dict[str, Any]) -> str:
+    """
+    Create a temporary profile folder with config.json for the workflow.
+    Returns the profile ID (folder name).
+    """
+    profile_id = f"job_{job_id[:8]}"
+    profile_path = os.path.join(PROFILE_DIR, profile_id)
+    os.makedirs(profile_path, exist_ok=True)
+    
+    # Create config.json
+    config = {
+        'channel_name': input_data.get('channel_name', 'Channel'),
+        'badge_style': input_data.get('badge_style', 'blue'),
+        'voice': input_data.get('voice', ''),
+        'voice_model': input_data.get('voice_model', 'eleven_turbo_v2_5'),
+        'background_video': input_data.get('background_video', ''),
+        'selected_badges': input_data.get('selected_badges', []),
+        'music': input_data.get('music', 'none'),
+        'highlight_color': input_data.get('highlight_color', '#ffffff'),
+        'animations_enabled': input_data.get('animations_enabled', True),
+        'font': input_data.get('font', 'montserrat'),
+        'video_length': input_data.get('video_length', 0)
+    }
+    
+    config_path = os.path.join(profile_path, 'config.json')
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+    
+    # Save profile picture if provided
+    profile_pic = input_data.get('profile_pic')
+    if profile_pic and profile_pic.startswith('data:'):
+        import base64
+        try:
+            header, data = profile_pic.split(',', 1)
+            pfp_path = os.path.join(profile_path, 'pfp.png')
+            with open(pfp_path, 'wb') as f:
+                f.write(base64.b64decode(data))
+            print(f"  Saved profile picture to {pfp_path}")
+        except Exception as e:
+            print(f"  Warning: Could not save profile picture: {e}")
+    
+    print(f"  Created temp profile: {profile_id}")
+    return profile_id
+
+def cleanup_temp_profile(profile_id: str):
+    """Remove temporary profile folder"""
+    try:
+        profile_path = os.path.join(PROFILE_DIR, profile_id)
+        if os.path.exists(profile_path):
+            shutil.rmtree(profile_path)
+            print(f"  Cleaned up temp profile: {profile_id}")
+    except Exception as e:
+        print(f"  Warning: Could not clean up profile: {e}")
+
+# ============================================
 # VIDEO PROCESSING
 # ============================================
 
@@ -172,109 +309,87 @@ def process_job(job: dict):
     send_heartbeat('busy')
     update_job_status(job_id, 'processing', 5)
     
+    # Create temp profile
+    profile_id = None
+    job_output_dir = None
+    
     try:
         # Create output directory for this job
         job_output_dir = os.path.join(OUTPUT_DIR, job_id)
         os.makedirs(job_output_dir, exist_ok=True)
         
-        # Extract settings from input_data
-        channel_name = input_data.get('channel_name', 'Channel')
-        profile_pic = input_data.get('profile_pic')
-        font = input_data.get('font', 'montserrat')
-        voice_id = input_data.get('voice', '')
-        voice_model = input_data.get('voice_model', 'eleven_turbo_v2_5')
-        video_length = input_data.get('video_length', 179)
-        music = input_data.get('music', 'none')
-        background_video = input_data.get('background_video', '')
-        selected_badges = input_data.get('selected_badges', [])
-        highlight_color = input_data.get('highlight_color', '#ffff00')
-        animations_enabled = input_data.get('animations_enabled', True)
-        badge_style = input_data.get('badge_style', 'blue')
-        scripts = input_data.get('scripts', [])
-        script_names = input_data.get('script_names', [])
+        # Create temp profile from input_data
+        profile_id = create_temp_profile(job_id, input_data)
         
         update_job_status(job_id, 'processing', 10)
         
-        # Import the workflow manager
-        sys.path.insert(0, os.path.dirname(__file__))
-        from src.utils.workflow import WorkflowManager
-        from src.utils.models import Profile
-        
-        # Create a profile object
-        profile = Profile(
-            channel_name=channel_name,
-            font=font,
-            voice=voice_id,
-            voice_model=voice_model,
-            video_length=video_length,
-            music=music,
-            background_video=background_video,
-            selected_badges=selected_badges,
-            highlight_color=highlight_color,
-            animations_enabled=animations_enabled,
-            badge_style=badge_style
-        )
-        
-        update_job_status(job_id, 'processing', 20)
+        # Extract settings
+        channel_name = input_data.get('channel_name', 'Channel')
+        voice_id = input_data.get('voice', '')
+        voice_model = input_data.get('voice_model', 'eleven_turbo_v2_5')
+        background_video = input_data.get('background_video', '')
+        scripts = input_data.get('scripts', [])
+        script_names = input_data.get('script_names', [])
         
         # Save scripts to temp files
         temp_script_files = []
-        for i, (script_content, script_name) in enumerate(zip(scripts, script_names)):
+        uploaded_files_info = []
+        
+        for i, script_content in enumerate(scripts):
+            script_name = script_names[i] if i < len(script_names) else f"script_{i+1}.txt"
             script_path = os.path.join(job_output_dir, script_name)
             with open(script_path, 'w', encoding='utf-8') as f:
                 f.write(script_content)
             temp_script_files.append(script_path)
+            uploaded_files_info.append({
+                'temp_path': script_path,
+                'original_filename': script_name
+            })
+        
+        print(f"  Saved {len(temp_script_files)} script file(s)")
+        update_job_status(job_id, 'processing', 20)
+        
+        # Initialize task in mock task manager
+        task_manager.create_task(job_id, {
+            "output_folder": job_output_dir,
+            "status": TaskStatus.PROCESSING
+        })
+        
+        # Import and run workflow
+        from src.utils.workflow import WorkflowManager
+        
+        workflow_manager = WorkflowManager(
+            task_id=job_id,
+            base_dir=BASE_DIR
+        )
         
         update_job_status(job_id, 'processing', 30)
         
-        # Save profile picture if provided
-        profile_pic_path = None
-        if profile_pic and profile_pic.startswith('data:'):
-            import base64
-            # Decode base64 image
-            header, data = profile_pic.split(',', 1)
-            profile_pic_path = os.path.join(job_output_dir, 'pfp.png')
-            with open(profile_pic_path, 'wb') as f:
-                f.write(base64.b64decode(data))
-        
-        update_job_status(job_id, 'processing', 40)
-        
-        # Create workflow manager and process
-        workflow_manager = WorkflowManager(
-            task_id=job_id,
-            base_dir=os.path.dirname(__file__)
-        )
-        
-        # Override paths to use shared assets
-        workflow_manager.video_clip_mix_dir = VIDEO_CLIP_MIX_DIR
-        workflow_manager.music_dir = MUSIC_DIR
-        
-        update_job_status(job_id, 'processing', 50)
-        
         # Process the task
+        print(f"  Starting workflow processing...")
         result = workflow_manager.process_complete_task(
-            profile_id=job_id,
+            profile_id=profile_id,
             voice_name=voice_id,
             background_id=background_video,
             channel_name=channel_name,
             uploaded_files=temp_script_files,
-            uploaded_files_info=[{'temp_path': f, 'original_filename': os.path.basename(f)} for f in temp_script_files]
+            uploaded_files_info=uploaded_files_info
         )
         
         update_job_status(job_id, 'processing', 90)
         
         # Find output video
-        if result and result.get('output_folder'):
-            output_folder = result['output_folder']
-            video_folder = os.path.join(output_folder, 'videos')
+        if result and result.get('success'):
+            output_folder = result.get('output_folder', job_output_dir)
+            video_dir = os.path.join(output_folder, 'videos')
             
             video_files = []
-            if os.path.exists(video_folder):
-                video_files = [f for f in os.listdir(video_folder) if f.endswith(('.mp4', '.mov'))]
+            if os.path.exists(video_dir):
+                video_files = [f for f in os.listdir(video_dir) if f.endswith(('.mp4', '.mov'))]
             
             if video_files:
-                video_path = os.path.join(video_folder, video_files[0])
-                print(f"Video generated: {video_path}")
+                video_path = os.path.join(video_dir, video_files[0])
+                print(f"  Video generated: {video_path}")
                 
                 update_job_status(job_id, 'processing', 95)
                 
@@ -283,32 +398,37 @@ def process_job(job: dict):
                 
                 if output_url:
                     update_job_status(job_id, 'completed', 100, output_url=output_url)
-                    
-                    # Clean up local files
-                    try:
-                        shutil.rmtree(job_output_dir)
-                        if os.path.exists(output_folder):
-                            shutil.rmtree(output_folder)
-                        print(f"  Cleaned up local files")
-                    except Exception as e:
-                        print(f"  Warning: Could not clean up local files: {e}")
+                    print(f"  ✓ Job completed successfully!")
                 else:
                     # Keep local, provide local path
-                    update_job_status(job_id, 'completed', 100, output_url=f"file://{os.path.abspath(video_path)}")
+                    local_url = f"file://{os.path.abspath(video_path)}"
+                    update_job_status(job_id, 'completed', 100, output_url=local_url)
+                    print(f"  ✓ Job completed (local only): {local_url}")
             else:
-                update_job_status(job_id, 'failed', error_message='No output video found')
+                error_msg = 'No output video found in videos folder'
+                print(f"  ✗ {error_msg}")
+                update_job_status(job_id, 'failed', error_message=error_msg)
         else:
-            error_msg = result.get('error', 'Workflow failed') if result else 'No result from workflow'
-            update_job_status(job_id, 'failed', error_message=error_msg)
+            errors = result.get('errors', []) if result else ['No result returned']
+            error_msg = '; '.join(errors) if errors else 'Workflow failed'
+            print(f"  ✗ Workflow failed: {error_msg}")
+            update_job_status(job_id, 'failed', error_message=error_msg[:500])
             
     except Exception as e:
         error_msg = str(e)
-        print(f"Error processing job: {error_msg}")
+        print(f"  ✗ Error processing job: {error_msg}")
         traceback.print_exc()
         update_job_status(job_id, 'failed', error_message=error_msg[:500])
     
     finally:
         send_heartbeat('online')
+        
+        # Cleanup temp profile
+        if profile_id:
+            cleanup_temp_profile(profile_id)
+        
+        # Optionally cleanup job output directory
+        # (keeping it for now in case of debugging)
 
 # ============================================
 # MAIN LOOP
@@ -320,7 +440,8 @@ def main():
     print("  Pravus (Reddit) Video Generator - Job Poller")
     print("="*60)
     print(f"  Supabase URL: {SUPABASE_URL[:30]}...")
-    print(f"  Shared Assets: {SHARED_ASSETS_PATH}")
+    print(f"  Clip Mix Path: {VIDEO_CLIP_MIX_DIR}")
+    print(f"  Music Path: {MUSIC_DIR}")
     print(f"  Poll interval: {POLL_INTERVAL} seconds")
     print("="*60)
     print("\nWaiting for jobs from the web UI...")
@@ -353,7 +474,8 @@ def main():
         print("Worker stopped.")
 
 if __name__ == '__main__':
-    # Ensure output directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Make mock task_manager available globally for workflow imports
+    import builtins
+    builtins.task_manager = task_manager
+    
     main()
-
