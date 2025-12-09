@@ -99,3 +99,33 @@ Traceback (most recent call last):
 ValueError: Voice ID '21m00Tcm4TlvDq8ikWAM' must include 'elevenlabs/' prefix
 workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\6dfa816a-e04d-45e9-afd4-23578d4111b7\test-1.txt
 NoneType: None
+ai33: TTS task ended with status: {'id': '48e070cc-ba2a-45ff-ba18-b081d1fb97a7', 'created_at': '2025-12-09T22:58:22.397Z', 'status': 'error', 'credit_cost': 38, 'metadata': {'data': {'model_id': 'speech-2.5-hd-preview', 'voice_settings': {'speed': 1.15, 'style': 0, 'stability': 0.5, 'similarity_boost': 0.75}, 'with_transcript': False}, 'query': {'output_format': 'mp3_44100_128'}, 'voice_id': 'ErXwobaYiN019PkySvjV', 'audio_url': None}, 'progress': 30, 'type': 'tts', 'error_message': 'tts_chunk_error'}
+NoneType: None
+ai33: Error during TTS request: TTS task failed: tts_chunk_error
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\ai33.py", line 545, in _make_tts_request_with_retry
+    raise RuntimeError(f"TTS task failed: {error_msg}")
+RuntimeError: TTS task failed: tts_chunk_error
+audio: Error processing audio for test2_script: Failed to convert text: TTS task failed: tts_chunk_error
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\ai33.py", line 545, in _make_tts_request_with_retry
+    raise RuntimeError(f"TTS task failed: {error_msg}")
+RuntimeError: TTS task failed: tts_chunk_error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\audio.py", line 132, in _process_audio_for_text
+    result = self.tts_converter.convert_text(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\ai33.py", line 329, in convert_text
+    return self._convert_single_text(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\ai33.py", line 486, in _convert_single_text
+    return self._make_tts_request_with_retry(url, payload, task_type, output_filename, max_wait_time)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\ai33.py", line 553, in _make_tts_request_with_retry
+    raise RuntimeError(f"Failed to convert text: {str(e)}")
+RuntimeError: Failed to convert text: TTS task failed: tts_chunk_error
+workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\d184a06f-b3bf-450b-a439-16e05e0a79ee\test2.txt
+NoneType: None

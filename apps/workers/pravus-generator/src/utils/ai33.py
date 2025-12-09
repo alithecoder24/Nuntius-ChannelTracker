@@ -318,7 +318,17 @@ class AI33TTS:
         if not voice_exists:
             raise ValueError(f"Voice ID '{clean_voice_id}' with type '{voice_type}' not found in available voices")
         
-        custom_print(FILE, f"Using voice ID: {clean_voice_id} (Type: {voice_type})")
+        # Auto-select appropriate model based on voice type if model is default/mismatched
+        if voice_type == "elevenlabs" and (model == "speech-2.5-hd-preview" or model.startswith("speech-")):
+            # ElevenLabs voice with MiniMax model - switch to ElevenLabs model
+            model = "eleven_turbo_v2_5"
+            custom_print(FILE, f"Auto-switched to ElevenLabs model: {model}")
+        elif voice_type == "minimax" and model.startswith("eleven_"):
+            # MiniMax voice with ElevenLabs model - switch to MiniMax model
+            model = "speech-2.5-hd-preview"
+            custom_print(FILE, f"Auto-switched to MiniMax model: {model}")
+        
+        custom_print(FILE, f"Using voice ID: {clean_voice_id} (Type: {voice_type}, Model: {model})")
         
         # Check if text needs to be split
         if prefix == "ai33-minimax":
