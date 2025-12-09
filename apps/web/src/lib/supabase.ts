@@ -285,12 +285,13 @@ export interface VideoJob {
   completed_at: string | null;
 }
 
-export async function createVideoJob(userId: string, inputData: VideoJob['input_data']): Promise<VideoJob> {
+export async function createVideoJob(userId: string, inputData: Record<string, unknown>): Promise<VideoJob> {
+  const toolType = (inputData.tool_type as string) || 'imessage-generator';
   const { data, error } = await supabase
     .from('video_jobs')
     .insert({
       user_id: userId,
-      tool_type: inputData.tool_type || 'imessage-generator',
+      tool_type: toolType,
       status: 'pending',
       input_data: inputData,
       progress: 0,
