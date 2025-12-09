@@ -73,3 +73,19 @@ Traceback (most recent call last):
     _tm.update_file_progress(self.task_id, original_filename, "failed", 0)
     ^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'MockTaskManager' object has no attribute 'update_file_progress'
+audio: Error processing audio for test-1_script: 'NoneType' object has no attribute 'convert_text'
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\audio.py", line 121, in _process_audio_for_text
+    result = self.tts_converter.convert_text(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'convert_text'
+workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\9e5e2413-8b16-41ee-874f-af346e6eaddd\test-1.txt
+NoneType: None
+audio: Error processing audio for test-1_script: 'NoneType' object has no attribute 'convert_text'
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\audio.py", line 121, in _process_audio_for_text
+    result = self.tts_converter.convert_text(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'convert_text'
+workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\50038976-c53a-43e3-b8e0-0b82caccc0ea\test-1.txt
+NoneType: None

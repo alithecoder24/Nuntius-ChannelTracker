@@ -113,7 +113,8 @@ class AudioPipeline:
             # Step 1: Convert text to speech (raw audio)
             if voice_name.startswith("ai33-"):
                 self.tts_converter = AI33TTS()
-            elif voice_name.startswith("elevenlabs/"):
+            else:
+                # Default to ElevenLabs for all other voices (including no prefix)
                 self.tts_converter = ElevenlabsTTS()
 
             print(f"Using voice model: {voice_model}")
