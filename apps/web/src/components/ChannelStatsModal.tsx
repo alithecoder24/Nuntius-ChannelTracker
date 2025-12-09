@@ -146,51 +146,49 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
         aggregated[g.date].videoCount = g.videoCount;
       });
       
-      // Fill in missing dates with zero values
+      // Build processed array from aggregated data, filling in missing dates
       const processed: DailyData[] = [];
-      if (rawData.length >= 2) {
-        // Get all unique dates from aggregated data
-        const allDates = Object.keys(aggregated);
+      const aggregatedDates = Object.keys(aggregated);
+      
+      if (aggregatedDates.length > 0) {
+        // Sort the aggregated dates chronologically
+        const sortedDates = aggregatedDates.sort((a, b) => {
+          const yearNow = new Date().getFullYear();
+          const dateA = new Date(`${a}, ${yearNow}`);
+          const dateB = new Date(`${b}, ${yearNow}`);
+          return dateA.getTime() - dateB.getTime();
+        });
         
-        // Parse dates and sort them chronologically
-        const dateObjects = allDates.map(dateStr => {
-          // Parse "Dec 7" format back to a date
-          const currentYear = new Date().getFullYear();
-          const parsed = new Date(`${dateStr}, ${currentYear}`);
-          return { label: dateStr, timestamp: parsed.getTime() };
-        }).sort((a, b) => a.timestamp - b.timestamp);
+        // Get the first and last dates with actual data
+        const firstDateStr = sortedDates[0];
+        const lastDateStr = sortedDates[sortedDates.length - 1];
+        const yearNow = new Date().getFullYear();
+        const firstDate = new Date(`${firstDateStr}, ${yearNow}`);
+        const lastDate = new Date(`${lastDateStr}, ${yearNow}`);
         
-        if (dateObjects.length > 0) {
-          // Get first and last dates
-          const firstTimestamp = dateObjects[0].timestamp;
-          const lastTimestamp = dateObjects[dateObjects.length - 1].timestamp;
+        // Iterate from first to last date (inclusive)
+        const currentDate = new Date(firstDate);
+        while (currentDate <= lastDate) {
+          const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           
-          // Iterate through each day from first to last (inclusive)
-          const currentDate = new Date(firstTimestamp);
-          const endDate = new Date(lastTimestamp);
-          
-          while (currentDate <= endDate) {
-            const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            
-            if (aggregated[dateLabel]) {
-              processed.push(aggregated[dateLabel]);
-            } else {
-              // Missing date - add with zero values
-              processed.push({
-                date: dateLabel,
-                fullDate: dateLabel,
-                views: 0,
-                subscribers: 0,
-                videoCount: 0,
-                viewsGained: 0,
-                subsGained: 0,
-                uploadsGained: 0,
-              });
-            }
-            
-            // Move to next day
-            currentDate.setDate(currentDate.getDate() + 1);
+          if (aggregated[dateLabel]) {
+            processed.push(aggregated[dateLabel]);
+          } else {
+            // Missing date - add with zero values
+            processed.push({
+              date: dateLabel,
+              fullDate: dateLabel,
+              views: 0,
+              subscribers: 0,
+              videoCount: 0,
+              viewsGained: 0,
+              subsGained: 0,
+              uploadsGained: 0,
+            });
           }
+          
+          // Move to next day
+          currentDate.setDate(currentDate.getDate() + 1);
         }
       }
 
