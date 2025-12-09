@@ -158,7 +158,7 @@ def get_pending_jobs():
         print(f"Error fetching jobs: {e}")
         return []
 
-def update_job_status(job_id: str, status: str, progress: int = 0, error_message: str = None, output_url: str = None):
+def update_job_status(job_id: str, status: str, progress: int = 0, error_message: str = None, output_url: str = None, status_message: str = None):
     """Update job status in Supabase"""
     try:
         update_data = {
@@ -166,20 +166,26 @@ def update_job_status(job_id: str, status: str, progress: int = 0, error_message
             'progress': progress,
         }
         
+        if status_message:
+            update_data['status_message'] = status_message
+        
         if status == 'processing' and not update_data.get('started_at'):
             update_data['started_at'] = datetime.utcnow().isoformat()
         
         if status == 'completed':
             update_data['completed_at'] = datetime.utcnow().isoformat()
+            update_data['status_message'] = None  # Clear status message on completion
             if output_url:
                 update_data['output_url'] = output_url
         
         if status == 'failed' and error_message:
             update_data['error_message'] = error_message
+            update_data['status_message'] = None  # Clear status message on failure
             update_data['completed_at'] = datetime.utcnow().isoformat()
         
         supabase.table('video_jobs').update(update_data).eq('id', job_id).execute()
-        print(f"  Updated job {job_id[:8]}... to {status} ({progress}%)")
+        msg = status_message or status
+        print(f"  [{progress}%] {msg}")
     except Exception as e:
         print(f"Error updating job status: {e}")
 
@@ -195,7 +201,7 @@ def process_job(job: dict):
     
     try:
         # Update status to processing
-        update_job_status(job_id, 'processing', 5)
+        update_job_status(job_id, 'processing', 5, status_message='Initializing...')
         
         # Extract job data
         project_name = input_data.get('project_name', 'Untitled')
@@ -227,7 +233,7 @@ def process_job(job: dict):
         while len(people) < 10:
             people.append(Person(voice=None, name=None, image=None))
         
-        update_job_status(job_id, 'processing', 10)
+        update_job_status(job_id, 'processing', 10, status_message='Configuring people...')
         
         # Create Data object
         data = Data(
@@ -245,25 +251,34 @@ def process_job(job: dict):
         with open(f'{job_folder}/{project_name}.json', 'w') as f:
             json.dump(data.to_json, f)
         
-        update_job_status(job_id, 'processing', 20)
+        update_job_status(job_id, 'processing', 20, status_message='Setting up generator...')
         
         # Create video generator with progress callback
         generator = VideoGenerator(data=data, script_path=SCRIPTS_PATH)
         
-        # Override status update to also update Supabase
+        # Override status update to also update Supabase with granular messages
         original_update = generator.update_data_status
         def update_with_progress():
             original_update()
             # Parse progress from status
-            status = generator.data.status
-            if 'video:' in status.lower():
-                # Estimate progress based on status
-                progress = 50 + (hash(status) % 40)  # 50-90%
-                update_job_status(job_id, 'processing', progress)
+            status = generator.data.status.lower()
+            
+            # Map status to user-friendly messages and progress
+            if 'audio' in status or 'tts' in status or 'voice' in status:
+                update_job_status(job_id, 'processing', 40, status_message='Generating audio...')
+            elif 'image' in status or 'screenshot' in status or 'render' in status:
+                update_job_status(job_id, 'processing', 60, status_message='Creating images...')
+            elif 'video' in status:
+                if 'compos' in status or 'merge' in status or 'concat' in status:
+                    update_job_status(job_id, 'processing', 80, status_message='Compositing video...')
+                else:
+                    update_job_status(job_id, 'processing', 70, status_message='Rendering video...')
+            elif 'finalize' in status or 'complete' in status:
+                update_job_status(job_id, 'processing', 90, status_message='Finalizing...')
         generator.update_data_status = update_with_progress
         
         print("Starting video generation...")
-        update_job_status(job_id, 'processing', 30)
+        update_job_status(job_id, 'processing', 30, status_message='Generating audio...')
         
         # Generate the video
         generator.generate_video()
@@ -282,7 +297,7 @@ def process_job(job: dict):
             video_path = os.path.join(output_dir, video_files[0])
             print(f"Video generated: {video_path}")
             
-            update_job_status(job_id, 'processing', 95)
+            update_job_status(job_id, 'processing', 95, status_message='Uploading to cloud...')
             
             # Upload to R2 cloud storage
             output_url = upload_to_r2(video_path, job_id)

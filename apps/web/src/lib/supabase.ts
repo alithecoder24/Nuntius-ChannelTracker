@@ -272,13 +272,17 @@ export interface VideoJob {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   input_data: {
     project_name: string;
-    script: string;
-    dark_mode: boolean;
-    language: string;
-    people: { id: string; name: string; voice: string }[];
+    script?: string;
+    dark_mode?: boolean;
+    language?: string;
+    people?: { id: string; name: string; voice: string; image?: string | null }[];
+    // Pravus-specific fields
+    profile_image?: string;
+    video_count?: number;
   };
   output_url: string | null;
   error_message: string | null;
+  status_message: string | null; // Granular status like "Generating audio...", "Rendering video..."
   progress: number;
   created_at: string;
   started_at: string | null;

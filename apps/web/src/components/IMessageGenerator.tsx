@@ -325,11 +325,34 @@ export default function IMessageGenerator({ userId }: IMessageGeneratorProps) {
 
   const getStatusText = (job: VideoJob) => {
     switch (job.status) {
-      case 'pending': return 'Waiting for worker...';
-      case 'processing': return `Processing${job.progress > 0 ? ` (${job.progress}%)` : '...'}`;
+      case 'pending': return 'In queue...';
+      case 'processing': 
+        // Show granular status if available
+        if (job.status_message) return job.status_message;
+        if (job.progress > 0) return `Processing (${job.progress}%)`;
+        return 'Starting...';
       case 'completed': return 'Ready to download';
       case 'failed': return job.error_message || 'Failed';
     }
+  };
+
+  // Get profile picture for a job (first person's image)
+  const getJobProfileImage = (job: VideoJob): string | null => {
+    const people = job.input_data.people;
+    if (people && people.length > 0 && people[0].image) {
+      return people[0].image;
+    }
+    return job.input_data.profile_image || null;
+  };
+
+  // Get video count for a job (based on -$- separators)
+  const getVideoCount = (job: VideoJob): number => {
+    if (job.input_data.video_count) return job.input_data.video_count;
+    const script = job.input_data.script;
+    if (!script) return 1;
+    // Count segments separated by -$-
+    const segments = script.split('-$-').filter(s => s.trim().length > 0);
+    return Math.max(1, segments.length);
   };
 
   const formatTime = (dateStr: string) => {
@@ -725,12 +748,32 @@ B: Cool!`}
           </div>
         ) : (
           <div className="space-y-3">
-            {jobs.map(job => (
+            {jobs.map(job => {
+              const profileImage = getJobProfileImage(job);
+              const videoCount = getVideoCount(job);
+              
+              return (
               <div key={job.id} className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors group">
                 <div className="flex items-center gap-4">
+                  {/* Profile Picture */}
+                  <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.15)] flex items-center justify-center">
+                    {profileImage ? (
+                      <img src={profileImage} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-5 h-5 text-[#52525b]" />
+                    )}
+                  </div>
+                  
+                  {/* Status Icon */}
                   {getStatusIcon(job.status)}
+                  
                   <div>
-                    <p className="text-[#f8fafc] font-medium">{job.input_data.project_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[#f8fafc] font-medium">{job.input_data.project_name}</p>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[rgba(96,165,250,0.1)] text-[#60a5fa] border border-[rgba(96,165,250,0.2)]">
+                        {videoCount} {videoCount === 1 ? 'video' : 'videos'}
+                      </span>
+                    </div>
                     <p className="text-[#71717a] text-sm">{getStatusText(job)} • {formatTime(job.created_at)}</p>
                   </div>
                 </div>
@@ -781,7 +824,8 @@ B: Cool!`}
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
