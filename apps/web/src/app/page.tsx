@@ -203,9 +203,12 @@ export default function Home() {
           views1d: 0,
         }));
 
-        // Compute total views gained from all snapshots (sum of all daily gains)
+        // Compute views gained from snapshots for different time windows
         const channelIds = baseChannels.map(c => c.channel_id);
         let views1dMap: Record<string, number> = {};
+        let views28dMap: Record<string, number> = {};
+        let views48hMap: Record<string, number> = {};
+        
         if (channelIds.length > 0) {
           const { data: snaps, error: snapError } = await supabase
             .from('channel_snapshots')
@@ -224,23 +227,54 @@ export default function Home() {
               });
             });
             
-            // Calculate total views gained (sum of all consecutive differences)
-            views1dMap = Object.fromEntries(
-              Object.entries(grouped).map(([id, snapshots]) => {
-                let totalGain = 0;
-                for (let i = 1; i < snapshots.length; i++) {
-                  const diff = snapshots[i].view_count - snapshots[i - 1].view_count;
-                  totalGain += Math.max(0, diff);
+            const now = new Date();
+            const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+            const twentyEightDaysAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+            
+            // Calculate views gained for each time window
+            Object.entries(grouped).forEach(([id, snapshots]) => {
+              // Total views (24h badge - sum of all gains, for ranking)
+              let totalGain = 0;
+              let gain28d = 0;
+              let gain48h = 0;
+              
+              for (let i = 1; i < snapshots.length; i++) {
+                const snapshotDate = new Date(snapshots[i].created_at);
+                const diff = snapshots[i].view_count - snapshots[i - 1].view_count;
+                const gain = Math.max(0, diff);
+                
+                totalGain += gain;
+                
+                // 28d views - gains in last 28 days
+                if (snapshotDate >= twentyEightDaysAgo) {
+                  gain28d += gain;
                 }
-                return [id, totalGain];
-              })
-            );
+                
+                // 48h views - gains in last 48 hours
+                if (snapshotDate >= twoDaysAgo) {
+                  gain48h += gain;
+                }
+              }
+              
+              views1dMap[id] = totalGain;
+              views28dMap[id] = gain28d;
+              views48hMap[id] = gain48h;
+            });
           }
         }
+
+        // Helper to format numbers
+        const formatViewCount = (num: number): string => {
+          if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+          if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+          return num.toString();
+        };
 
         const merged = baseChannels.map(ch => ({
           ...ch,
           views1d: views1dMap[ch.channel_id] ?? 0,
+          views28d: formatViewCount(views28dMap[ch.channel_id] ?? 0),
+          views48h: formatViewCount(views48hMap[ch.channel_id] ?? 0),
         }));
 
         setChannels(merged);
