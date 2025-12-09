@@ -19,17 +19,19 @@ def get_task_manager():
     Get task_manager from either main.py (Flask app) or builtins (job_poller).
     Returns a mock object if neither is available.
     """
-    try:
-        task_manager = get_task_manager()
-        return task_manager
-    except ImportError:
-        pass
-    
+    # Try to get from builtins first (set by job_poller.py)
     try:
         import builtins
         if hasattr(builtins, 'task_manager'):
             return builtins.task_manager
     except:
+        pass
+    
+    # Try to import from main.py (Flask app)
+    try:
+        from main import task_manager
+        return task_manager
+    except ImportError:
         pass
     
     # Return a minimal mock that won't crash
