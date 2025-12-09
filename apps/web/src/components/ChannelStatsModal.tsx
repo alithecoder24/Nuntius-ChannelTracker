@@ -149,36 +149,48 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
       // Fill in missing dates with zero values
       const processed: DailyData[] = [];
       if (rawData.length >= 2) {
-        // Get the date range from first to last snapshot
-        const firstDate = new Date(rawData[0].created_at);
-        const lastDate = new Date(rawData[rawData.length - 1].created_at);
+        // Get all unique dates from aggregated data
+        const allDates = Object.keys(aggregated);
         
-        // Start from the first snapshot date (UTC midnight)
-        const currentDate = new Date(Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth(), firstDate.getUTCDate()));
-        const endDate = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
+        // Parse dates and sort them chronologically
+        const dateObjects = allDates.map(dateStr => {
+          // Parse "Dec 7" format back to a date
+          const currentYear = new Date().getFullYear();
+          const parsed = new Date(`${dateStr}, ${currentYear}`);
+          return { label: dateStr, timestamp: parsed.getTime() };
+        }).sort((a, b) => a.timestamp - b.timestamp);
         
-        // Iterate through each day in the range (excluding the last day since we need next day's snapshot to calculate gains)
-        while (currentDate < endDate) {
-          const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        if (dateObjects.length > 0) {
+          // Get first and last dates
+          const firstTimestamp = dateObjects[0].timestamp;
+          const lastTimestamp = dateObjects[dateObjects.length - 1].timestamp;
           
-          if (aggregated[dateLabel]) {
-            processed.push(aggregated[dateLabel]);
-          } else {
-            // Missing date - add with zero values
-            processed.push({
-              date: dateLabel,
-              fullDate: dateLabel,
-              views: 0,
-              subscribers: 0,
-              videoCount: 0,
-              viewsGained: 0,
-              subsGained: 0,
-              uploadsGained: 0,
-            });
+          // Iterate through each day from first to last (inclusive)
+          const currentDate = new Date(firstTimestamp);
+          const endDate = new Date(lastTimestamp);
+          
+          while (currentDate <= endDate) {
+            const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            if (aggregated[dateLabel]) {
+              processed.push(aggregated[dateLabel]);
+            } else {
+              // Missing date - add with zero values
+              processed.push({
+                date: dateLabel,
+                fullDate: dateLabel,
+                views: 0,
+                subscribers: 0,
+                videoCount: 0,
+                viewsGained: 0,
+                subsGained: 0,
+                uploadsGained: 0,
+              });
+            }
+            
+            // Move to next day
+            currentDate.setDate(currentDate.getDate() + 1);
           }
-          
-          // Move to next day
-          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
         }
       }
 
