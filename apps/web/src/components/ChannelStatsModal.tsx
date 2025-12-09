@@ -136,10 +136,39 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
         aggregated[g.date].subscribers = g.subscribers; // Use latest
       });
       
-      // Convert to array and sort by date
-      const processed = Object.values(aggregated).sort((a, b) => 
-        new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime()
-      );
+      // Fill in missing dates with zero values
+      const processed: DailyData[] = [];
+      if (rawData.length >= 2) {
+        // Get the date range from first to last snapshot
+        const firstDate = new Date(rawData[0].created_at);
+        const lastDate = new Date(rawData[rawData.length - 1].created_at);
+        
+        // Start from the first snapshot date (UTC midnight)
+        const currentDate = new Date(Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth(), firstDate.getUTCDate()));
+        const endDate = new Date(Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate()));
+        
+        // Iterate through each day in the range (excluding the last day since we need next day's snapshot to calculate gains)
+        while (currentDate < endDate) {
+          const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+          
+          if (aggregated[dateLabel]) {
+            processed.push(aggregated[dateLabel]);
+          } else {
+            // Missing date - add with zero values
+            processed.push({
+              date: dateLabel,
+              fullDate: dateLabel,
+              views: 0,
+              subscribers: 0,
+              viewsGained: 0,
+              subsGained: 0,
+            });
+          }
+          
+          // Move to next day
+          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        }
+      }
 
       setDailyData(processed);
     } catch (err) {
