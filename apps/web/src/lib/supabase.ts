@@ -290,7 +290,7 @@ export async function createVideoJob(userId: string, inputData: VideoJob['input_
     .from('video_jobs')
     .insert({
       user_id: userId,
-      tool_type: 'imessage-generator',
+      tool_type: inputData.tool_type || 'imessage-generator',
       status: 'pending',
       input_data: inputData,
       progress: 0,
