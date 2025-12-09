@@ -315,8 +315,8 @@ class WorkflowManager:
                     return os.path.join(self.base_dir, directory)
                 return directory
             
-            # Set up path to video mix directory
-            video_mix_base_dir = "Assets/VideoClipMix"
+            # Set up path to video mix directory (use env var or default)
+            video_mix_base_dir = os.getenv('CLIP_MIX_PATH', 'C:/Nuntius-Clip-Mix')
             
             # Create Profile object
             profile = None

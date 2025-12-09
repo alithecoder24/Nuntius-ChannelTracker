@@ -48,3 +48,28 @@ Traceback (most recent call last):
                    ^^^^^^^^^^^^^^^^^^
   [Previous line repeated 4990 more times]
 RecursionError: maximum recursion depth exceeded
+workflow: Exception processing audio file C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\3f2c2c5b-9bd8-4e73-94ab-c1953184977e\test-1.txt: 'MockTaskManager' object has no attribute 'update_file_progress'
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\workflow.py", line 721, in _process_single_audio_file
+    task_manager.update_file_progress(self.task_id, display_name, "processing", 0)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MockTaskManager' object has no attribute 'update_file_progress'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\workflow.py", line 814, in _process_audio_files_parallel
+    result = future.result()
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\Ali\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\workflow.py", line 765, in _process_single_audio_file
+    _tm.update_file_progress(self.task_id, original_filename, "failed", 0)
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MockTaskManager' object has no attribute 'update_file_progress'

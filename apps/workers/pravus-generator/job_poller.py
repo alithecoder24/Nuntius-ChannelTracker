@@ -132,6 +132,14 @@ class MockTaskManager:
             del self.tasks[task_id]
             return True
         return False
+    
+    def update_file_progress(self, task_id: str, filename: str, status: str, progress: int):
+        """Update progress for a specific file (no-op for mock)"""
+        pass
+    
+    def check_and_start_queued_tasks(self):
+        """Check queued tasks (no-op for mock)"""
+        pass
 
 
 # Global task manager instance
