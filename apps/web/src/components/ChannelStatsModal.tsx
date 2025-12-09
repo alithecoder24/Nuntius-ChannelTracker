@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Loader2, Users, Video, Eye, Tag, Check, X } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Loader2, Users, Video, Eye, Tag, Check, X, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface ChannelStatsModalProps {
@@ -27,8 +27,10 @@ interface DailyData {
   fullDate: string;
   views: number;
   subscribers: number;
+  videoCount: number;
   viewsGained: number;
   subsGained: number;
+  uploadsGained: number;
 }
 
 const timeRanges = [
@@ -84,7 +86,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
 
       const { data, error } = await supabase
         .from('channel_snapshots')
-        .select('view_count, subscriber_count, created_at')
+        .select('view_count, subscriber_count, video_count, created_at')
         .eq('channel_id', channel.channel_id)
         .gte('created_at', startDate.toISOString())
         .order('created_at', { ascending: true });
@@ -94,7 +96,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
       const rawData = data || [];
       
       // First, calculate gains between consecutive snapshots
-      const rawGains: { date: string; viewsGained: number; subsGained: number; views: number; subscribers: number }[] = [];
+      const rawGains: { date: string; viewsGained: number; subsGained: number; uploadsGained: number; views: number; subscribers: number; videoCount: number }[] = [];
       
       for (let i = 1; i < rawData.length; i++) {
         const current = rawData[i];
@@ -104,6 +106,8 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
         const previousViews = parseInt(previous.view_count) || 0;
         const currentSubs = parseInt(current.subscriber_count) || 0;
         const previousSubs = parseInt(previous.subscriber_count) || 0;
+        const currentVideos = parseInt(current.video_count) || 0;
+        const previousVideos = parseInt(previous.video_count) || 0;
         
         // Use the PREVIOUS snapshot's date (UTC) since that's when views were generated
         const dateLabel = formatDate(previous.created_at);
@@ -112,8 +116,10 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
           date: dateLabel,
           viewsGained: Math.max(0, currentViews - previousViews),
           subsGained: currentSubs - previousSubs,
+          uploadsGained: Math.max(0, currentVideos - previousVideos),
           views: currentViews,
           subscribers: currentSubs,
+          videoCount: currentVideos,
         });
       }
       
@@ -126,14 +132,18 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
             fullDate: g.date,
             views: g.views,
             subscribers: g.subscribers,
+            videoCount: g.videoCount,
             viewsGained: 0,
             subsGained: 0,
+            uploadsGained: 0,
           };
         }
         aggregated[g.date].viewsGained += g.viewsGained;
         aggregated[g.date].subsGained += g.subsGained;
-        aggregated[g.date].views = g.views; // Use latest
-        aggregated[g.date].subscribers = g.subscribers; // Use latest
+        aggregated[g.date].uploadsGained += g.uploadsGained;
+        aggregated[g.date].views = g.views;
+        aggregated[g.date].subscribers = g.subscribers;
+        aggregated[g.date].videoCount = g.videoCount;
       });
       
       // Fill in missing dates with zero values
@@ -160,8 +170,10 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
               fullDate: dateLabel,
               views: 0,
               subscribers: 0,
+              videoCount: 0,
               viewsGained: 0,
               subsGained: 0,
+              uploadsGained: 0,
             });
           }
           
@@ -197,7 +209,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
 
   const totalViewsGained = dailyData.reduce((sum, d) => sum + d.viewsGained, 0);
   const totalSubsGained = dailyData.reduce((sum, d) => sum + d.subsGained, 0);
-  const avgDailyViews = dailyData.length > 0 ? Math.round(totalViewsGained / dailyData.length) : 0;
+  const totalUploads = dailyData.reduce((sum, d) => sum + d.uploadsGained, 0);
   const chartDataKey = viewMode === 'views' ? 'viewsGained' : 'subsGained';
 
   const filteredTags = userTags.filter(t => 
@@ -335,11 +347,12 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
             </div>
           </div>
           <div className="glass-panel rounded-xl p-4">
-            <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1">
-              Avg Daily Views
+            <div className="text-[10px] text-[#71717a] uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Upload className="w-3 h-3" />
+              Uploads ({timeRanges.find(t => t.days === timeRange)?.label})
             </div>
             <div className="text-xl font-bold text-[#c084fc]">
-              {formatNumber(avgDailyViews)}
+              +{totalUploads}
             </div>
           </div>
         </div>
@@ -397,16 +410,16 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
             </div>
           ) : dailyData.length >= 1 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyData}>
+              <AreaChart data={dailyData}>
                 <defs>
-                  <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.9}/>
-                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0.4}/>
+                  <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.4}/>
+                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.05}/>
                   </linearGradient>
                 </defs>
                 <XAxis 
                   dataKey="date" 
-                  axisLine={false}
+                  axisLine={{ stroke: '#333', strokeWidth: 1 }}
                   tickLine={false}
                   tick={{ fill: '#71717a', fontSize: 10 }}
                   interval="preserveStartEnd"
@@ -421,7 +434,7 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'rgba(20, 16, 32, 0.98)',
-                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    border: '1px solid rgba(249, 115, 22, 0.3)',
                     borderRadius: '12px',
                     padding: '12px',
                   }}
@@ -431,12 +444,16 @@ export default function ChannelStatsModal({ isOpen, onClose, channel, userTags =
                     viewMode === 'views' ? 'Views Gained' : 'Subs Gained'
                   ]}
                 />
-                <Bar
+                <Area
+                  type="monotone"
                   dataKey={chartDataKey}
-                  fill="url(#colorBar)"
-                  radius={[4, 4, 0, 0]}
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  fill="url(#colorArea)"
+                  dot={{ fill: '#f97316', strokeWidth: 0, r: 3 }}
+                  activeDot={{ fill: '#f97316', strokeWidth: 2, stroke: '#fff', r: 5 }}
                 />
-              </BarChart>
+              </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-[#71717a]">
