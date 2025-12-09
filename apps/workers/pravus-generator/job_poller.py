@@ -39,7 +39,6 @@ R2_ACCOUNT_ID = os.getenv('R2_ACCOUNT_ID')
 R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
 R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
 R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME', 'nuntius-videos')
-R2_PUBLIC_URL = os.getenv('R2_PUBLIC_URL')  # e.g., https://pub-xxx.r2.dev
 
 r2_client = None
 if R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY:
@@ -158,34 +157,42 @@ def send_heartbeat(status: str = 'online'):
 # ============================================
 
 def upload_to_r2(file_path: str, job_id: str) -> str:
-    """Upload a file to Cloudflare R2 and return the public URL"""
+    """Upload a file to Cloudflare R2 and return a presigned URL (valid 24h)"""
     if not r2_client:
         print("  R2 not configured, skipping upload")
         return None
     
     try:
         file_ext = os.path.splitext(file_path)[1]
-        object_key = f"pravus/{job_id}/output{file_ext}"
+        remote_filename = f"pravus/{job_id}/output{file_ext}"
         
-        print(f"  Uploading to R2: {object_key}")
-        r2_client.upload_file(
-            file_path,
-            R2_BUCKET_NAME,
-            object_key,
-            ExtraArgs={'ContentType': 'video/mp4'}
+        print(f"  Uploading to R2: {remote_filename}...")
+        
+        # Upload the file
+        with open(file_path, 'rb') as f:
+            r2_client.upload_fileobj(
+                f,
+                R2_BUCKET_NAME,
+                remote_filename,
+                ExtraArgs={'ContentType': 'video/mp4'}
+            )
+        
+        # Generate a presigned URL (valid for 24 hours) - same as iMessage bot
+        url = r2_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': R2_BUCKET_NAME,
+                'Key': remote_filename
+            },
+            ExpiresIn=86400  # 24 hours
         )
         
-        # Construct public URL
-        if R2_PUBLIC_URL:
-            public_url = f"{R2_PUBLIC_URL}/{object_key}"
-        else:
-            public_url = f"https://{R2_BUCKET_NAME}.{R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{object_key}"
-        
-        print(f"  Upload complete: {public_url}")
-        return public_url
+        print(f"  Upload complete! URL valid for 24h")
+        return url
         
     except Exception as e:
         print(f"  Error uploading to R2: {e}")
+        traceback.print_exc()
         return None
 
 # ============================================
