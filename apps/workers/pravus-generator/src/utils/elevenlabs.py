@@ -134,8 +134,7 @@ class ElevenlabsTTS:
                 clean_voice_id = parts[1]
                 if prefix != "elevenlabs":
                     raise ValueError(f"Voice ID '{voice_id}' must have 'elevenlabs/' prefix")
-        else:
-            raise ValueError(f"Voice ID '{voice_id}' must include 'elevenlabs/' prefix")
+        # else: No prefix - use voice_id as-is (assume ElevenLabs)
         
         # Verify the voice exists in our cached list
         voice_exists = any(v.voice_id == clean_voice_id for v in self.voice_list)

@@ -89,3 +89,13 @@ Traceback (most recent call last):
 AttributeError: 'NoneType' object has no attribute 'convert_text'
 workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\50038976-c53a-43e3-b8e0-0b82caccc0ea\test-1.txt
 NoneType: None
+audio: Error processing audio for test-1_script: Voice ID '21m00Tcm4TlvDq8ikWAM' must include 'elevenlabs/' prefix
+Traceback (most recent call last):
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\audio.py", line 122, in _process_audio_for_text
+    result = self.tts_converter.convert_text(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\src\utils\elevenlabs.py", line 138, in convert_text
+    raise ValueError(f"Voice ID '{voice_id}' must include 'elevenlabs/' prefix")
+ValueError: Voice ID '21m00Tcm4TlvDq8ikWAM' must include 'elevenlabs/' prefix
+workflow: Failed to process audio file: C:\Users\Ali\Desktop\Nuntius-ChannelTracker\apps\workers\pravus-generator\output\6dfa816a-e04d-45e9-afd4-23578d4111b7\test-1.txt
+NoneType: None
