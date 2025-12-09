@@ -109,12 +109,22 @@ class AudioPipeline:
                 combined_text = combined_text.replace(old_quote, new_quote)
 
             custom_print(FILE, f"Converting text to speech for {title}")
+            custom_print(FILE, f"Voice: {voice_name}, Model: {voice_model}")
             
             # Step 1: Convert text to speech (raw audio)
+            # Determine which TTS provider to use based on voice_name prefix
             if voice_name.startswith("ai33-"):
+                # AI33 API (wraps ElevenLabs and MiniMax)
+                # Format: ai33-elevenlabs/{voice_id} or ai33-minimax/{voice_id}
+                custom_print(FILE, "Using AI33 TTS provider")
                 self.tts_converter = AI33TTS()
+            elif voice_name.startswith("genpro-"):
+                # GenPro API (future - wraps other providers)
+                custom_print(FILE, "Using GenPro TTS provider (not yet implemented)")
+                raise NotImplementedError("GenPro TTS is not yet implemented")
             else:
-                # Default to ElevenLabs for all other voices (including no prefix)
+                # Direct ElevenLabs API (no prefix or elevenlabs/ prefix)
+                custom_print(FILE, "Using direct ElevenLabs TTS provider")
                 self.tts_converter = ElevenlabsTTS()
 
             print(f"Using voice model: {voice_model}")

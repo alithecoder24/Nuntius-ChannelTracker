@@ -342,6 +342,23 @@ def process_job(job: dict):
         channel_name = input_data.get('channel_name', 'Channel')
         voice_id = input_data.get('voice', '')
         voice_model = input_data.get('voice_model', 'eleven_turbo_v2_5')
+        voice_provider = input_data.get('voice_provider', 'elevenlabs')
+        sub_provider = input_data.get('sub_provider', 'elevenlabs')
+        
+        # Construct full voice name with provider prefix
+        # This tells audio.py which TTS engine to use
+        if voice_provider == 'ai33':
+            # AI33 wraps other providers: ai33-elevenlabs/VOICE_ID or ai33-minimax/VOICE_ID
+            full_voice_name = f"ai33-{sub_provider}/{voice_id}"
+        elif voice_provider == 'genpro':
+            # GenPro (future): genpro-elevenlabs/VOICE_ID or genpro-minimax/VOICE_ID
+            full_voice_name = f"genpro-{sub_provider}/{voice_id}"
+        else:
+            # Direct ElevenLabs: just the voice ID
+            full_voice_name = voice_id
+        
+        print(f"  Voice: {full_voice_name} (provider: {voice_provider})")
+        
         background_video = input_data.get('background_video', '')
         scripts = input_data.get('scripts', [])
         script_names = input_data.get('script_names', [])
@@ -384,7 +401,7 @@ def process_job(job: dict):
         print(f"  Starting workflow processing...")
         result = workflow_manager.process_complete_task(
             profile_id=profile_id,
-            voice_name=voice_id,
+            voice_name=full_voice_name,
             background_id=background_video,
             channel_name=channel_name,
             uploaded_files=temp_script_files,
