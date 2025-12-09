@@ -758,7 +758,7 @@ class WorkflowManager:
 
         except Exception as e:
             # Update individual file progress - failed
-            task_manager = get_task_manager() as _tm
+            _tm = get_task_manager()
             original_filename = filename_mapping.get(file_path, os.path.basename(file_path))
             _tm.update_file_progress(self.task_id, original_filename, "failed", 0)
             custom_print(FILE, f"Error processing audio file {file_path}: {str(e)}", error=True)
