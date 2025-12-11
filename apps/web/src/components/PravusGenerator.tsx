@@ -317,52 +317,47 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   // Load profiles from localStorage on mount
   useEffect(() => {
     console.log('[Profiles] === LOADING PROFILES ===');
-    console.log('[Profiles] All localStorage keys:', Object.keys(localStorage));
-    
-    // Dump all localStorage for debugging
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('pravus') || key.includes('profile'))) {
-        console.log(`[Profiles] Found key "${key}":`, localStorage.getItem(key)?.substring(0, 100));
-      }
-    }
     
     try {
-      // Try multiple possible keys
-      const keysToTry = [
+      // Collect ALL profiles from ALL keys, then merge by ID
+      const allProfiles = new Map<string, Profile>();
+      
+      const keysToCheck = [
         STORAGE_KEY,
         `pravus_profiles_${userId}`,
         'pravus_profiles',
       ];
       
-      let foundProfiles: Profile[] = [];
-      
-      for (const key of keysToTry) {
-        if (foundProfiles.length > 0) break;
-        
+      for (const key of keysToCheck) {
         const saved = localStorage.getItem(key);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.channel_name) {
-              console.log(`[Profiles] ✓ Found ${parsed.length} profiles in key "${key}"`);
-              foundProfiles = parsed;
-              
-              // Migrate to the standard key if needed
-              if (key !== STORAGE_KEY) {
-                console.log(`[Profiles] Migrating from "${key}" to "${STORAGE_KEY}"`);
-                localStorage.setItem(STORAGE_KEY, saved);
+            if (Array.isArray(parsed)) {
+              for (const profile of parsed) {
+                if (profile?.id && profile?.channel_name) {
+                  // Use Map to dedupe by ID - newer entries won't overwrite
+                  if (!allProfiles.has(profile.id)) {
+                    allProfiles.set(profile.id, profile);
+                    console.log(`[Profiles] Found "${profile.channel_name}" in "${key}"`);
+                  }
+                }
               }
             }
           } catch {}
         }
       }
       
-      if (foundProfiles.length > 0) {
-        setProfiles(foundProfiles);
-        console.log('[Profiles] Loaded:', foundProfiles.map(p => p.channel_name));
+      const mergedProfiles = Array.from(allProfiles.values());
+      
+      if (mergedProfiles.length > 0) {
+        console.log('[Profiles] ✓ Loaded:', mergedProfiles.map(p => p.channel_name));
+        setProfiles(mergedProfiles);
+        
+        // Save the merged result back to ensure consistency
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedProfiles));
       } else {
-        console.log('[Profiles] No profiles found in any key');
+        console.log('[Profiles] No profiles found');
       }
     } catch (e) {
       console.error('[Profiles] Error loading:', e);
@@ -371,23 +366,19 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
 
   // Save profiles to localStorage
   const saveProfiles = (newProfiles: Profile[]) => {
-    console.log('[Profiles] === SAVING PROFILES ===');
-    console.log('[Profiles] Saving:', newProfiles.map(p => p.channel_name));
+    console.log('[Profiles] === SAVING ===', newProfiles.map(p => p.channel_name));
     
     // Update state
     setProfiles(newProfiles);
     
-    // Save to localStorage
+    // Save to localStorage (to ALL keys for redundancy)
     try {
       const json = JSON.stringify(newProfiles);
       localStorage.setItem(STORAGE_KEY, json);
-      
-      // Also save to user-specific key as backup
       localStorage.setItem(`pravus_profiles_${userId}`, json);
+      localStorage.setItem('pravus_profiles', json); // Legacy key too
       
-      // Verify
-      const verify = localStorage.getItem(STORAGE_KEY);
-      console.log('[Profiles] Saved to localStorage:', verify ? '✓ Success' : '✗ Failed');
+      console.log('[Profiles] ✓ Saved to all keys');
     } catch (e) {
       console.error('[Profiles] Error saving:', e);
     }
