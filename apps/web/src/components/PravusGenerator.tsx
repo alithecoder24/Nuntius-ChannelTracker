@@ -338,7 +338,34 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
         const existingJobs = await getVideoJobs(userId);
         // Filter to only pravus jobs
         const pravusJobs = existingJobs.filter(j => j.tool_type === 'pravus-generator');
-        if (mounted) setJobs(pravusJobs);
+        
+        // Auto-delete jobs older than 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        const recentJobs: typeof pravusJobs = [];
+        for (const job of pravusJobs) {
+          const jobDate = new Date(job.created_at);
+          if (jobDate < twentyFourHoursAgo) {
+            // Delete old job (async, don't wait)
+            try {
+              if (job.output_url) {
+                fetch('/api/r2/delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ jobId: job.id }),
+                }).catch(() => {}); // Ignore R2 delete errors
+              }
+              deleteVideoJob(job.id).catch(() => {});
+            } catch {
+              // Ignore deletion errors
+            }
+          } else {
+            recentJobs.push(job);
+          }
+        }
+        
+        if (mounted) setJobs(recentJobs);
       } catch (err) {
         console.error('Error loading jobs:', err);
       }
@@ -647,10 +674,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {profiles.map(profile => (
-              <button
+              <div
                 key={profile.id}
                 onClick={() => handleProfileSelect(profile.id)}
-                className={`relative p-3 rounded-xl border transition-all flex flex-col items-center gap-2 group ${
+                className={`relative p-3 rounded-xl border transition-all flex flex-col items-center gap-2 group cursor-pointer ${
                   selectedProfileId === profile.id
                     ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)]'
                     : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.25)]'
@@ -667,14 +694,28 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                 </div>
                 <span className="text-xs text-[#f8fafc] truncate max-w-full">{profile.channel_name}</span>
                 
+                {/* Settings button */}
+                <button
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    handleProfileSelect(profile.id);
+                    setIsEditingProfile(true);
+                  }}
+                  className="absolute top-1 left-1 w-6 h-6 rounded-full bg-[rgba(168,85,247,0.3)] text-[#a1a1aa] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[rgba(168,85,247,0.5)] hover:text-white transition-all"
+                  title="Edit profile settings"
+                >
+                  <Settings className="w-3 h-3" />
+                </button>
+                
                 {/* Delete button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteProfile(profile.id); }}
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#f87171] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[rgba(248,113,113,0.3)] text-[#f87171] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[#f87171] hover:text-white transition-all"
+                  title="Delete profile"
                 >
                   <X className="w-3 h-3" />
                 </button>
-              </button>
+              </div>
             ))}
             
             {profiles.length === 0 && !isCreatingProfile && (
@@ -686,26 +727,21 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
           </div>
         </div>
 
-        {/* Profile Editor (shown when creating/editing) */}
-        {(isCreatingProfile || isEditingProfile || selectedProfileId) && (
+        {/* Profile Editor (shown ONLY when creating or editing - not just selected) */}
+        {(isCreatingProfile || isEditingProfile) && (
           <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#f8fafc]">
                 {isCreatingProfile ? 'New Profile' : 'Profile Settings'}
               </h3>
-              {selectedProfileId && !isCreatingProfile && (
-                <button
-                  onClick={() => setIsEditingProfile(!isEditingProfile)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    isEditingProfile
-                      ? 'bg-[rgba(234,88,12,0.15)] text-[#fb923c]'
-                      : 'bg-[rgba(15,12,25,0.4)] text-[#71717a] hover:text-[#a1a1aa]'
-                  }`}
-                >
-                  <Edit2 className="w-3 h-3 inline mr-1" />
-                  {isEditingProfile ? 'Editing' : 'Edit'}
-                </button>
-              )}
+              {/* Close button */}
+              <button
+                onClick={() => { setIsEditingProfile(false); setIsCreatingProfile(false); }}
+                className="p-1.5 rounded-lg text-[#71717a] hover:text-[#f8fafc] hover:bg-[rgba(168,85,247,0.2)] transition-all"
+                title="Close settings"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1093,10 +1129,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
         </div>
       </div>
 
-      {/* Jobs Queue */}
+      {/* Jobs Queue - Split View */}
       <div className="glass-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-[#f8fafc]">Recent Jobs</h2>
+          <h2 className="text-lg font-semibold text-[#f8fafc]">Jobs</h2>
           <div className="flex items-center gap-1.5 text-xs text-[#52525b]">
             <Info className="w-3.5 h-3.5" />
             <span>Videos auto-delete after 24h</span>
@@ -1110,57 +1146,183 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             <p className="text-sm">Upload scripts and generate videos</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {jobs.map(job => (
-              <div key={job.id} className="flex items-center justify-between p-4 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)] hover:border-[rgba(168,85,247,0.2)] transition-colors group">
-                <div className="flex items-center gap-4">
-                  {getStatusIcon(job.status)}
-                  <div>
-                    <p className="text-[#f8fafc] font-medium">{(job.input_data as any).channel_name || 'Untitled'}</p>
-                    <p className="text-[#71717a] text-sm">
-                      {job.status === 'completed' ? 'Ready to download' : job.status} • {formatTime(job.created_at)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {job.status === 'completed' && job.output_url && (
-                    <a
-                      href={job.output_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 rounded-xl text-sm font-medium text-[#fb923c] bg-[rgba(234,88,12,0.1)] border border-[rgba(234,88,12,0.25)] hover:bg-[rgba(234,88,12,0.2)] transition-colors inline-flex items-center gap-2"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download
-                    </a>
-                  )}
-                  
-                  <button
-                    onClick={async () => {
-                      if (confirm('Delete this job?')) {
-                        try {
-                          if (job.output_url) {
-                            await fetch('/api/r2/delete', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ jobId: job.id }),
-                            });
-                          }
-                          await deleteVideoJob(job.id);
-                          setJobs(prev => prev.filter(j => j.id !== job.id));
-                        } catch (err) {
-                          console.error('Error deleting job:', err);
-                        }
-                      }
-                    }}
-                    className="p-2 rounded-lg text-[#71717a] hover:text-[#f87171] hover:bg-[rgba(248,113,113,0.1)] transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* In Queue Column */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Loader2 className="w-4 h-4 text-[#fbbf24]" />
+                <h3 className="text-sm font-medium text-[#a1a1aa]">In Queue</h3>
+                <span className="px-1.5 py-0.5 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24] text-xs">
+                  {jobs.filter(j => j.status === 'pending' || j.status === 'processing').length}
+                </span>
               </div>
-            ))}
+              <div className="space-y-2">
+                {jobs.filter(j => j.status === 'pending' || j.status === 'processing').length === 0 ? (
+                  <div className="text-center py-8 text-[#52525b] border border-dashed border-[rgba(168,85,247,0.15)] rounded-xl">
+                    <p className="text-sm">No jobs in queue</p>
+                  </div>
+                ) : (
+                  jobs.filter(j => j.status === 'pending' || j.status === 'processing').map(job => {
+                    const inputData = job.input_data as any;
+                    const scriptCount = inputData.scripts?.length || 1;
+                    const profilePic = inputData.profile_pic;
+                    
+                    return (
+                      <div key={job.id} className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)] transition-colors group">
+                        <div className="flex items-center gap-3">
+                          {/* Profile Picture */}
+                          <div className="w-10 h-10 rounded-full bg-[rgba(168,85,247,0.2)] overflow-hidden border-2 border-[rgba(168,85,247,0.3)] flex-shrink-0">
+                            {profilePic ? (
+                              <img src={profilePic} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-[#71717a]" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[#f8fafc] font-medium text-sm truncate">{inputData.channel_name || 'Untitled'}</p>
+                              {/* Status Badge */}
+                              {job.status === 'processing' ? (
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(234,88,12,0.15)] text-[#fb923c] text-xs">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Generating
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24] text-xs">
+                                  Queued
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-[#71717a]">
+                              <span className="flex items-center gap-1">
+                                <FileText className="w-3 h-3" />
+                                {scriptCount} script{scriptCount > 1 ? 's' : ''}
+                              </span>
+                              <span>•</span>
+                              <span>{formatTime(job.created_at)}</span>
+                            </div>
+                            {/* Progress bar for processing jobs */}
+                            {job.status === 'processing' && job.progress !== undefined && (
+                              <div className="mt-2 h-1.5 bg-[rgba(168,85,247,0.1)] rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-[#fb923c] to-[#fbbf24] rounded-full transition-all duration-500"
+                                  style={{ width: `${job.progress}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+            
+            {/* Finished Column */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 className="w-4 h-4 text-[#4ade80]" />
+                <h3 className="text-sm font-medium text-[#a1a1aa]">Finished</h3>
+                <span className="px-1.5 py-0.5 rounded-full bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-xs">
+                  {jobs.filter(j => j.status === 'completed' || j.status === 'failed').length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {jobs.filter(j => j.status === 'completed' || j.status === 'failed').length === 0 ? (
+                  <div className="text-center py-8 text-[#52525b] border border-dashed border-[rgba(168,85,247,0.15)] rounded-xl">
+                    <p className="text-sm">No finished jobs</p>
+                  </div>
+                ) : (
+                  jobs.filter(j => j.status === 'completed' || j.status === 'failed').map(job => {
+                    const inputData = job.input_data as any;
+                    const scriptCount = inputData.scripts?.length || 1;
+                    const profilePic = inputData.profile_pic;
+                    
+                    return (
+                      <div key={job.id} className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)] transition-colors group">
+                        <div className="flex items-center gap-3">
+                          {/* Profile Picture */}
+                          <div className="w-10 h-10 rounded-full bg-[rgba(168,85,247,0.2)] overflow-hidden border-2 border-[rgba(168,85,247,0.3)] flex-shrink-0">
+                            {profilePic ? (
+                              <img src={profilePic} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-[#71717a]" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[#f8fafc] font-medium text-sm truncate">{inputData.channel_name || 'Untitled'}</p>
+                              {job.status === 'completed' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-xs">
+                                  Ready
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-[rgba(248,113,113,0.15)] text-[#f87171] text-xs">
+                                  Failed
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-[#71717a]">
+                              <span className="flex items-center gap-1">
+                                <FileText className="w-3 h-3" />
+                                {scriptCount} script{scriptCount > 1 ? 's' : ''}
+                              </span>
+                              <span>•</span>
+                              <span>{formatTime(job.created_at)}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex items-center gap-1">
+                            {job.status === 'completed' && job.output_url && (
+                              <a
+                                href={job.output_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 rounded-lg text-[#4ade80] hover:bg-[rgba(74,222,128,0.15)] transition-colors"
+                                title="Download"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+                            <button
+                              onClick={async () => {
+                                if (confirm('Delete this job?')) {
+                                  try {
+                                    if (job.output_url) {
+                                      await fetch('/api/r2/delete', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ jobId: job.id }),
+                                      });
+                                    }
+                                    await deleteVideoJob(job.id);
+                                    setJobs(prev => prev.filter(j => j.id !== job.id));
+                                  } catch (err) {
+                                    console.error('Error deleting job:', err);
+                                  }
+                                }
+                              }}
+                              className="p-2 rounded-lg text-[#71717a] hover:text-[#f87171] hover:bg-[rgba(248,113,113,0.1)] transition-all opacity-0 group-hover:opacity-100"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
