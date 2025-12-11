@@ -470,33 +470,8 @@ export default function Home() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
 
-  // User is logged in but not a team member
-  if (user && !teamMember) {
-    return (
-      <div className="min-h-screen relative z-[1] flex flex-col">
-        <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
-        <header className="relative z-10 p-6 flex items-center justify-between">
-          <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Nuntius Niche Tracker</span>
-          <UserMenu user={user} />
-        </header>
-        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
-          <div className="text-center max-w-lg mx-auto">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#e879f9]/20 flex items-center justify-center mx-auto mb-6 border border-[rgba(168,85,247,0.2)]">
-              <ShieldX className="w-10 h-10 text-[#c084fc]" />
-            </div>
-            <h1 className="text-3xl font-bold text-[#f8fafc] mb-4">Access Restricted</h1>
-            <p className="text-[#a1a1aa] mb-2">This tool is for team members only.</p>
-            <p className="text-[#71717a] text-sm mb-8">
-              Logged in as: <span className="text-[#c084fc]">{user.email}</span>
-            </p>
-            <p className="text-[#52525b] text-sm">
-              If you should have access, ask an admin to invite you.
-            </p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  // TEMPORARILY DISABLED: Access restriction check
+  // if (user && !teamMember) { ... }
 
   if (!user) {
     return (
