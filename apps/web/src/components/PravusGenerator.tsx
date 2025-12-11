@@ -811,6 +811,40 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                   </div>
                 </div>
 
+                {/* Badge Selection */}
+                <div>
+                  <label className="block text-xs font-medium text-[#71717a] mb-2">Select Badges</label>
+                  <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-2 bg-[rgba(15,12,25,0.4)] rounded-lg border border-[rgba(168,85,247,0.1)]">
+                    {BADGES.map((badge) => {
+                      const isSelected = selectedBadges.includes(badge);
+                      const displayName = badge.split('_').pop()?.replace('.png', '') || badge;
+                      return (
+                        <button
+                          key={badge}
+                          onClick={() => {
+                            if (!isCreatingProfile && !isEditingProfile) return;
+                            if (isSelected) {
+                              setSelectedBadges(selectedBadges.filter(b => b !== badge));
+                            } else {
+                              setSelectedBadges([...selectedBadges, badge]);
+                            }
+                          }}
+                          disabled={!isCreatingProfile && !isEditingProfile}
+                          className={`p-2 rounded-lg border transition-all ${
+                            isSelected
+                              ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)]'
+                              : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)]'
+                          } disabled:opacity-50 hover:border-[rgba(168,85,247,0.25)]`}
+                          title={displayName}
+                        >
+                          <span className="text-xs text-[#a1a1aa] truncate block">{displayName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-[#52525b] mt-1">Selected: {selectedBadges.length} badges</p>
+                </div>
+
                 {/* Save/Create Button */}
                 {(isCreatingProfile || isEditingProfile) && (
                   <button
