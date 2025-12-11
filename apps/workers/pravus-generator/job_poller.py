@@ -329,9 +329,28 @@ def process_job(job: dict):
     job_output_dir = None
     
     try:
-        # Create output directory for this job
-        job_output_dir = os.path.join(OUTPUT_DIR, job_id)
+        # Create output directory with readable name: channelname-dd-mm-yyyy-XX
+        channel_name = input_data.get('channel_name', 'Channel')
+        current_date = datetime.now().strftime("%d-%m-%Y")
+        base_folder_name = f"{channel_name}-{current_date}"
+        
+        # Find the next available number for this channel+date
+        highest_num = 0
+        if os.path.exists(OUTPUT_DIR):
+            for folder_name in os.listdir(OUTPUT_DIR):
+                folder_path = os.path.join(OUTPUT_DIR, folder_name)
+                if os.path.isdir(folder_path) and folder_name.startswith(base_folder_name):
+                    # Extract the number at the end (e.g., "Channel-11-12-2025-03" -> 3)
+                    parts = folder_name.rsplit('-', 1)
+                    if len(parts) == 2 and parts[-1].isdigit():
+                        highest_num = max(highest_num, int(parts[-1]))
+        
+        # Create folder with next number (padded to 2 digits)
+        next_num = highest_num + 1
+        job_folder_name = f"{base_folder_name}-{next_num:02d}"
+        job_output_dir = os.path.join(OUTPUT_DIR, job_folder_name)
         os.makedirs(job_output_dir, exist_ok=True)
+        print(f"  Output folder: {job_folder_name}")
         
         # Create temp profile from input_data
         profile_id = create_temp_profile(job_id, input_data)
