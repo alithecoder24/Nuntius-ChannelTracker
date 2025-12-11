@@ -74,11 +74,24 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     
-    const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (mounted) {
-        setUser(session?.user ?? null);
+    // Failsafe: Force loading to complete after 3 seconds
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth timeout - forcing load complete');
         setLoading(false);
+      }
+    }, 3000);
+    
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Auth error:', err);
+        if (mounted) setLoading(false);
       }
     };
     
@@ -92,6 +105,7 @@ export default function Home() {
     
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
