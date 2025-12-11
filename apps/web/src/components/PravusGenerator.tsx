@@ -311,84 +311,64 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [voiceProvider, subProvider]);
 
-  // Local storage key for this user's profiles
-  const profilesStorageKey = `pravus_profiles_${userId}`;
+  // Get the localStorage key for profiles
+  const getProfilesKey = () => `pravus_profiles_${userId}`;
   
-  // Load profiles from localStorage on mount (with migration from old keys)
+  // Load profiles from localStorage on mount
   useEffect(() => {
+    const storageKey = getProfilesKey();
+    console.log('[Profiles] Loading profiles for userId:', userId, 'key:', storageKey);
+    
     try {
-      // First, check if we have profiles under the new user-specific key
-      let saved = localStorage.getItem(profilesStorageKey);
-      let foundProfiles: Profile[] = [];
+      // First, check new user-specific key
+      let saved = localStorage.getItem(storageKey);
+      
+      // If not found, try old generic key and migrate
+      if (!saved) {
+        const oldSaved = localStorage.getItem('pravus_profiles');
+        if (oldSaved) {
+          console.log('[Profiles] Migrating from old key');
+          localStorage.setItem(storageKey, oldSaved);
+          saved = oldSaved;
+        }
+      }
       
       if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            foundProfiles = parsed;
-          }
-        } catch {}
-      }
-      
-      // If not found, try ALL possible old keys
-      if (foundProfiles.length === 0) {
-        const keysToTry = [
-          'pravus_profiles',
-          'pravus-profiles', 
-          'profiles',
-          'reddit_profiles',
-        ];
-        
-        // Also check for any key containing "pravus" or "profile"
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.includes('pravus') || key.includes('profile')) && !keysToTry.includes(key)) {
-            keysToTry.push(key);
-          }
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log('[Profiles] Loaded profiles:', parsed.map((p: Profile) => p.channel_name));
+          setProfiles(parsed);
         }
-        
-        for (const oldKey of keysToTry) {
-          if (foundProfiles.length > 0) break;
-          
-          const oldSaved = localStorage.getItem(oldKey);
-          if (oldSaved) {
-            try {
-              const parsed = JSON.parse(oldSaved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                // Check if it looks like profiles (has channel_name property)
-                if (parsed[0] && typeof parsed[0] === 'object' && 'channel_name' in parsed[0]) {
-                  console.log(`Found ${parsed.length} profiles in key: ${oldKey}`);
-                  foundProfiles = parsed;
-                  // Migrate to new key
-                  localStorage.setItem(profilesStorageKey, oldSaved);
-                }
-              }
-            } catch {}
-          }
-        }
-      }
-      
-      if (foundProfiles.length > 0) {
-        setProfiles(foundProfiles);
-        console.log(`Loaded ${foundProfiles.length} profiles for user ${userId}`);
       } else {
-        console.log('No profiles found in localStorage. Available keys:', 
-          Array.from({length: localStorage.length}, (_, i) => localStorage.key(i)));
+        console.log('[Profiles] No saved profiles found');
       }
     } catch (e) {
-      console.error('Error loading profiles:', e);
+      console.error('[Profiles] Error loading:', e);
     }
-  }, [userId, profilesStorageKey]);
+  }, [userId]);
 
-  // Save profiles to localStorage - called directly, not via useEffect
+  // Save profiles to localStorage
   const saveProfiles = (newProfiles: Profile[]) => {
+    const storageKey = getProfilesKey();
+    console.log('[Profiles] Saving to key:', storageKey, 'profiles:', newProfiles.map(p => p.channel_name));
+    
+    // Update state
     setProfiles(newProfiles);
-    // Save immediately to localStorage (don't rely on useEffect timing)
+    
+    // Save to localStorage immediately
     try {
-      localStorage.setItem(profilesStorageKey, JSON.stringify(newProfiles));
-      console.log(`Saved ${newProfiles.length} profiles to localStorage:`, newProfiles.map(p => p.channel_name));
+      const json = JSON.stringify(newProfiles);
+      localStorage.setItem(storageKey, json);
+      
+      // Verify it was saved
+      const verify = localStorage.getItem(storageKey);
+      if (verify === json) {
+        console.log('[Profiles] ✓ Save verified successfully');
+      } else {
+        console.error('[Profiles] ✗ Save verification failed!');
+      }
     } catch (e) {
-      console.error('Error saving profiles:', e);
+      console.error('[Profiles] Error saving:', e);
     }
   };
 
