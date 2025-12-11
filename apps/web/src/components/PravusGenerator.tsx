@@ -380,21 +380,16 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [userId, profilesStorageKey]);
 
-  // Save profiles to localStorage whenever profiles change
-  useEffect(() => {
-    if (profiles.length > 0) {
-      try {
-        localStorage.setItem(profilesStorageKey, JSON.stringify(profiles));
-        console.log(`Saved ${profiles.length} profiles to localStorage`);
-      } catch (e) {
-        console.error('Error saving profiles:', e);
-      }
-    }
-  }, [profiles, profilesStorageKey]);
-
-  // Helper to update profiles (triggers auto-save via useEffect above)
+  // Save profiles to localStorage - called directly, not via useEffect
   const saveProfiles = (newProfiles: Profile[]) => {
     setProfiles(newProfiles);
+    // Save immediately to localStorage (don't rely on useEffect timing)
+    try {
+      localStorage.setItem(profilesStorageKey, JSON.stringify(newProfiles));
+      console.log(`Saved ${newProfiles.length} profiles to localStorage:`, newProfiles.map(p => p.channel_name));
+    } catch (e) {
+      console.error('Error saving profiles:', e);
+    }
   };
 
   // Load jobs and subscribe to updates
