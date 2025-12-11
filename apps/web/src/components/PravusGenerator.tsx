@@ -311,22 +311,40 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [voiceProvider, subProvider]);
 
-  // Load profiles from localStorage (in real app, this would be Supabase)
+  // Local storage key for this user's profiles
+  const profilesStorageKey = `pravus_profiles_${userId}`;
+  
+  // Load profiles from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('pravus_profiles');
-    if (saved) {
+    try {
+      const saved = localStorage.getItem(profilesStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProfiles(parsed);
+          console.log(`Loaded ${parsed.length} profiles for user ${userId}`);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading profiles:', e);
+    }
+  }, [userId, profilesStorageKey]);
+
+  // Save profiles to localStorage whenever profiles change
+  useEffect(() => {
+    if (profiles.length > 0) {
       try {
-        setProfiles(JSON.parse(saved));
+        localStorage.setItem(profilesStorageKey, JSON.stringify(profiles));
+        console.log(`Saved ${profiles.length} profiles to localStorage`);
       } catch (e) {
-        console.error('Error loading profiles:', e);
+        console.error('Error saving profiles:', e);
       }
     }
-  }, []);
+  }, [profiles, profilesStorageKey]);
 
-  // Save profiles to localStorage
+  // Helper to update profiles (triggers auto-save via useEffect above)
   const saveProfiles = (newProfiles: Profile[]) => {
     setProfiles(newProfiles);
-    localStorage.setItem('pravus_profiles', JSON.stringify(newProfiles));
   };
 
   // Load jobs and subscribe to updates
