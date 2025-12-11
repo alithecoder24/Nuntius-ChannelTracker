@@ -425,17 +425,26 @@ def process_job(job: dict):
                 
                 update_job_status(job_id, 'processing', 95)
                 
-                # Upload to R2
-                output_url = upload_to_r2(video_path, job_id)
+                # Check if upload to drive is enabled (default to True for backward compatibility)
+                upload_to_drive = input_data.get('upload_to_drive', True)
                 
-                if output_url:
-                    update_job_status(job_id, 'completed', 100, output_url=output_url)
-                    print(f"  ✓ Job completed successfully!")
+                if upload_to_drive:
+                    # Upload to R2
+                    output_url = upload_to_r2(video_path, job_id)
+                    
+                    if output_url:
+                        update_job_status(job_id, 'completed', 100, output_url=output_url)
+                        print(f"  ✓ Job completed successfully!")
+                    else:
+                        # Keep local, provide local path
+                        local_url = f"file://{os.path.abspath(video_path)}"
+                        update_job_status(job_id, 'completed', 100, output_url=local_url)
+                        print(f"  ✓ Job completed (local only): {local_url}")
                 else:
-                    # Keep local, provide local path
+                    # Local only - skip R2 upload
                     local_url = f"file://{os.path.abspath(video_path)}"
                     update_job_status(job_id, 'completed', 100, output_url=local_url)
-                    print(f"  ✓ Job completed (local only): {local_url}")
+                    print(f"  ✓ Job completed (local only, upload disabled): {local_url}")
             else:
                 error_msg = 'No output video found in videos folder'
                 print(f"  ✗ {error_msg}")

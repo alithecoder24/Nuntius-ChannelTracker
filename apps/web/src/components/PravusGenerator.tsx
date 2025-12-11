@@ -177,6 +177,9 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const [voiceModel, setVoiceModel] = useState('eleven_turbo_v2_5');
   const [voice, setVoice] = useState('');
   
+  // Upload setting (NOT saved to profile - set per job)
+  const [uploadToDrive, setUploadToDrive] = useState(true);
+  
   // Script upload
   const [scriptFiles, setScriptFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -478,6 +481,7 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
         badge_style: badgeStyle,
         scripts: scripts,
         script_names: scriptFiles.map(f => f.name),
+        upload_to_drive: uploadToDrive,
       } as any);
       
       setJobs([newJob, ...jobs]);
@@ -543,6 +547,33 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Video className="w-5 h-5" />}
             Generate Videos
           </button>
+        </div>
+
+        {/* Upload Setting - Always Visible */}
+        <div className="mb-6 p-4 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.2)]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {uploadToDrive ? <Upload className="w-5 h-5 text-[#fb923c]" /> : <Download className="w-5 h-5 text-[#71717a]" />}
+              <div>
+                <h3 className="text-sm font-semibold text-[#f8fafc]">Upload to Drive</h3>
+                <p className="text-xs text-[#71717a]">
+                  {uploadToDrive 
+                    ? 'Videos will be uploaded to cloud storage' 
+                    : 'Videos will only be saved locally'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setUploadToDrive(!uploadToDrive)}
+              className={`relative w-14 h-7 rounded-full transition-colors ${
+                uploadToDrive ? 'bg-[#fb923c]' : 'bg-[#52525b]'
+              }`}
+            >
+              <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-all ${
+                uploadToDrive ? 'translate-x-7' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
         </div>
 
         {error && (
