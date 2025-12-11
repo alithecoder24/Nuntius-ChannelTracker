@@ -314,32 +314,66 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   // Local storage key for this user's profiles
   const profilesStorageKey = `pravus_profiles_${userId}`;
   
-  // Load profiles from localStorage on mount (with migration from old key)
+  // Load profiles from localStorage on mount (with migration from old keys)
   useEffect(() => {
     try {
       // First, check if we have profiles under the new user-specific key
       let saved = localStorage.getItem(profilesStorageKey);
+      let foundProfiles: Profile[] = [];
       
-      // If not, try to migrate from the old generic key
-      if (!saved) {
-        const oldKey = 'pravus_profiles';
-        const oldSaved = localStorage.getItem(oldKey);
-        if (oldSaved) {
-          console.log('Migrating profiles from old storage key...');
-          // Move to new key
-          localStorage.setItem(profilesStorageKey, oldSaved);
-          // Remove old key to prevent future confusion
-          localStorage.removeItem(oldKey);
-          saved = oldSaved;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            foundProfiles = parsed;
+          }
+        } catch {}
+      }
+      
+      // If not found, try ALL possible old keys
+      if (foundProfiles.length === 0) {
+        const keysToTry = [
+          'pravus_profiles',
+          'pravus-profiles', 
+          'profiles',
+          'reddit_profiles',
+        ];
+        
+        // Also check for any key containing "pravus" or "profile"
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('pravus') || key.includes('profile')) && !keysToTry.includes(key)) {
+            keysToTry.push(key);
+          }
+        }
+        
+        for (const oldKey of keysToTry) {
+          if (foundProfiles.length > 0) break;
+          
+          const oldSaved = localStorage.getItem(oldKey);
+          if (oldSaved) {
+            try {
+              const parsed = JSON.parse(oldSaved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                // Check if it looks like profiles (has channel_name property)
+                if (parsed[0] && typeof parsed[0] === 'object' && 'channel_name' in parsed[0]) {
+                  console.log(`Found ${parsed.length} profiles in key: ${oldKey}`);
+                  foundProfiles = parsed;
+                  // Migrate to new key
+                  localStorage.setItem(profilesStorageKey, oldSaved);
+                }
+              }
+            } catch {}
+          }
         }
       }
       
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProfiles(parsed);
-          console.log(`Loaded ${parsed.length} profiles for user ${userId}`);
-        }
+      if (foundProfiles.length > 0) {
+        setProfiles(foundProfiles);
+        console.log(`Loaded ${foundProfiles.length} profiles for user ${userId}`);
+      } else {
+        console.log('No profiles found in localStorage. Available keys:', 
+          Array.from({length: localStorage.length}, (_, i) => localStorage.key(i)));
       }
     } catch (e) {
       console.error('Error loading profiles:', e);
