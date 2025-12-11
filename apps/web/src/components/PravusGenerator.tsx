@@ -45,7 +45,7 @@ const FONTS = [
 const VOICE_PROVIDERS = [
   { id: 'elevenlabs', name: 'ElevenLabs' },
   { id: 'ai33', name: 'AI33' },
-  { id: 'genpro', name: 'GenPro (Coming Soon)' },
+  { id: 'genpro', name: 'GenPro' },
 ];
 
 const SUB_PROVIDERS = [
@@ -205,8 +205,21 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     } else if (voiceProvider === 'ai33') {
       return subProvider === 'elevenlabs' ? AI33_ELEVENLABS_VOICES : AI33_MINIMAX_VOICES;
     } else if (voiceProvider === 'genpro') {
-      // Placeholder - not implemented yet
-      return subProvider === 'elevenlabs' ? ELEVENLABS_VOICES : AI33_MINIMAX_VOICES;
+      // GenPro voices - backend will fetch actual voices from GenPro API
+      // For now, provide placeholder (backend handles actual voice selection)
+      if (subProvider === 'elevenlabs') {
+        // GenPro Labs (ElevenLabs) - show some common voice IDs as examples
+        return [
+          { id: '', name: 'Select GenPro Labs voice...' },
+          { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Example)' },
+          { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi (Example)' },
+        ];
+      } else {
+        // GenPro Max (MiniMax) - placeholder
+        return [
+          { id: '', name: 'Select GenPro Max voice...' },
+        ];
+      }
     }
     return ELEVENLABS_VOICES;
   };
@@ -215,8 +228,23 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const getAvailableModels = () => {
     if (voiceProvider === 'elevenlabs') {
       return ELEVENLABS_MODELS;
-    } else if (voiceProvider === 'ai33' || voiceProvider === 'genpro') {
+    } else if (voiceProvider === 'ai33') {
       return subProvider === 'elevenlabs' ? ELEVENLABS_MODELS : MINIMAX_MODELS;
+    } else if (voiceProvider === 'genpro') {
+      // GenPro Labs models (ElevenLabs) or GenPro Max models (MiniMax)
+      return subProvider === 'elevenlabs' 
+        ? [
+            { id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2' },
+            { id: 'eleven_turbo_v2_5', name: 'Eleven Turbo v2.5' },
+            { id: 'eleven_flash_v2_5', name: 'Eleven Flash v2.5' },
+            { id: 'eleven_v3', name: 'Eleven v3' },
+          ]
+        : [
+            { id: 'speech-2.5-hd-preview', name: 'Speech 2.5 HD Preview' },
+            { id: 'speech-2.5-turbo-preview', name: 'Speech 2.5 Turbo Preview' },
+            { id: 'speech-02-hd', name: 'Speech 02 HD' },
+            { id: 'speech-02-turbo', name: 'Speech 02 Turbo' },
+          ];
     }
     return ELEVENLABS_MODELS;
   };
@@ -841,13 +869,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                   <button
                     key={provider.id}
                     onClick={() => setVoiceProvider(provider.id as VoiceProvider)}
-                    disabled={provider.id === 'genpro'}
                     className={`px-3 py-2 rounded-lg border text-xs font-medium text-left transition-all ${
                       voiceProvider === provider.id
                         ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)] text-[#fb923c]'
-                        : provider.id === 'genpro'
-                          ? 'bg-[rgba(15,12,25,0.3)] border-[rgba(168,85,247,0.1)] text-[#52525b] cursor-not-allowed'
-                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
+                        : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)] text-[#a1a1aa] hover:border-[rgba(168,85,247,0.25)]'
                     }`}
                   >
                     {provider.name}

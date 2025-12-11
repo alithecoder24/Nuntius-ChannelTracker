@@ -17,6 +17,7 @@ from src.forms import VideoGenerationForm
 from src.utils.utils import custom_print
 from src.utils.ai33 import AI33TTS
 from src.utils.elevenlabs import ElevenlabsTTS
+from src.utils.genpro import GenProTTS
 from src.utils.models import Profile
 from src.utils.profiles import (
     get_profiles, 
@@ -63,6 +64,14 @@ app.jinja_env.add_extension('jinja2.ext.do') # Enable the 'do' extension
 
 elevenlabs = ElevenlabsTTS()
 ai33 = AI33TTS()
+genpro = None  # Initialize lazily to avoid errors if API key not set
+
+# Try to initialize GenPro if API key is available
+try:
+    genpro = GenProTTS()
+    custom_print(FILE, "GenPro TTS provider initialized successfully")
+except ValueError as e:
+    custom_print(FILE, f"GenPro TTS not available: {e}")
 
 voices_cache = []
 voices_cached = False
@@ -231,24 +240,40 @@ def index():
     # Get available music files
     music_files = get_music_files()
     
-    global voices_cache, voices_cached, models_cache, models_cached
+    global voices_cache, voices_cached, models_cache, models_cached, genpro
+    
+    # Re-check GenPro initialization if it wasn't initialized at startup
+    # This allows adding the API key without restarting the app
+    if genpro is None:
+        try:
+            genpro = GenProTTS()
+            custom_print(FILE, "GenPro TTS provider initialized successfully (late initialization)")
+            # If GenPro was just initialized and cache exists, we should refresh
+            if voices_cached or models_cached:
+                custom_print(FILE, "GenPro was just initialized - refreshing cache...")
+                voices_cached = False
+                models_cached = False
+        except ValueError as e:
+            custom_print(FILE, f"GenPro TTS not available: {e}")
     
     try:
         if not voices_cached:
             custom_print(FILE, "Fetching voices for the first time...")
             elevenlabs_voices = elevenlabs.get_available_voices()
             ai33_voices = ai33.get_available_voices()
-            voices_cache = elevenlabs_voices + ai33_voices
+            genpro_voices = genpro.get_available_voices() if genpro else []
+            voices_cache = elevenlabs_voices + ai33_voices + genpro_voices
             voices_cached = True
-            custom_print(FILE, f"Cached {len(voices_cache)} total voices ({len(elevenlabs_voices)} ElevenLabs + {len(ai33_voices)} AI33)")
+            custom_print(FILE, f"Cached {len(voices_cache)} total voices ({len(elevenlabs_voices)} ElevenLabs + {len(ai33_voices)} AI33 + {len(genpro_voices)} GenPro)")
         
         if not models_cached:
             custom_print(FILE, "Fetching models for the first time...")
             elevenlabs_models = elevenlabs.get_available_models()
             ai33_models = ai33.get_available_models()
-            models_cache = elevenlabs_models + ai33_models
+            genpro_models = genpro.get_available_models() if genpro else []
+            models_cache = elevenlabs_models + ai33_models + genpro_models
             models_cached = True
-            custom_print(FILE, f"Cached {len(models_cache)} total models ({len(elevenlabs_models)} ElevenLabs + {len(ai33_models)} AI33)")
+            custom_print(FILE, f"Cached {len(models_cache)} total models ({len(elevenlabs_models)} ElevenLabs + {len(ai33_models)} AI33 + {len(genpro_models)} GenPro)")
         
         voice_choices = [(voice['voice_id'], voice['name']) for voice in voices_cache]
         model_choices = [(model['model_id'], model['name']) for model in models_cache]
@@ -931,6 +956,51 @@ def queue_stats():
         "queued_tasks": queued_tasks,
         "processing_tasks": processing_tasks
     })
+
+@app.route("/refresh_voices", methods=["POST"])
+def refresh_voices():
+    """Manually refresh the voices and models cache."""
+    global voices_cache, voices_cached, models_cache, models_cached, genpro
+    
+    try:
+        # Re-check GenPro initialization
+        if genpro is None:
+            try:
+                genpro = GenProTTS()
+                custom_print(FILE, "GenPro TTS provider initialized successfully (manual refresh)")
+            except ValueError as e:
+                custom_print(FILE, f"GenPro TTS not available: {e}")
+        
+        # Force refresh all providers
+        custom_print(FILE, "Manually refreshing voices and models cache...")
+        elevenlabs_voices = elevenlabs.get_available_voices(force_refresh=True)
+        ai33_voices = ai33.get_available_voices(force_refresh=True)
+        genpro_voices = genpro.get_available_voices(force_refresh=True) if genpro else []
+        voices_cache = elevenlabs_voices + ai33_voices + genpro_voices
+        
+        elevenlabs_models = elevenlabs.get_available_models(force_refresh=True)
+        ai33_models = ai33.get_available_models(force_refresh=True)
+        genpro_models = genpro.get_available_models(force_refresh=True) if genpro else []
+        models_cache = elevenlabs_models + ai33_models + genpro_models
+        
+        voices_cached = True
+        models_cached = True
+        
+        custom_print(FILE, f"Cache refreshed: {len(voices_cache)} voices, {len(models_cache)} models")
+        
+        return jsonify({
+            "success": True,
+            "message": "Voices and models cache refreshed successfully",
+            "voices_count": len(voices_cache),
+            "models_count": len(models_cache),
+            "genpro_available": genpro is not None
+        })
+    except Exception as e:
+        custom_print(FILE, f"Error refreshing cache: {e}", error=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 if __name__ == "__main__":
     # Ensure all required directories exist before starting    custom_print(FILE, "Initializing Pravus...")

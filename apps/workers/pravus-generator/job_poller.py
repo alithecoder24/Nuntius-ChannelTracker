@@ -351,8 +351,9 @@ def process_job(job: dict):
             # AI33 wraps other providers: ai33-elevenlabs/VOICE_ID or ai33-minimax/VOICE_ID
             full_voice_name = f"ai33-{sub_provider}/{voice_id}"
         elif voice_provider == 'genpro':
-            # GenPro (future): genpro-elevenlabs/VOICE_ID or genpro-minimax/VOICE_ID
-            full_voice_name = f"genpro-{sub_provider}/{voice_id}"
+            # GenPro uses 'labs' (ElevenLabs) or 'max' (MiniMax)
+            genpro_sub = 'labs' if sub_provider == 'elevenlabs' else 'max'
+            full_voice_name = f"genpro-{genpro_sub}/{voice_id}"
         else:
             # Direct ElevenLabs: just the voice ID
             full_voice_name = voice_id

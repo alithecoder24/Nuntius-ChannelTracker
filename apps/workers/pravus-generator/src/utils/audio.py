@@ -12,6 +12,7 @@ from src.utils.audio_process import AudioProcessor
 from src.utils.text_utils import process_text_files
 from src.utils.utils import custom_print
 from src.utils.ai33 import AI33TTS
+from src.utils.genpro import GenProTTS
 
 FILE = "audio"
 POP_SFX = "src/assets/pop_sfx.mp3"
@@ -119,9 +120,10 @@ class AudioPipeline:
                 custom_print(FILE, "Using AI33 TTS provider")
                 self.tts_converter = AI33TTS()
             elif voice_name.startswith("genpro-"):
-                # GenPro API (future - wraps other providers)
-                custom_print(FILE, "Using GenPro TTS provider (not yet implemented)")
-                raise NotImplementedError("GenPro TTS is not yet implemented")
+                # GenPro API (wraps ElevenLabs Labs and MiniMax Max)
+                # Format: genpro-labs/{voice_id} or genpro-max/{voice_id}
+                custom_print(FILE, "Using GenPro TTS provider")
+                self.tts_converter = GenProTTS()
             else:
                 # Direct ElevenLabs API (no prefix or elevenlabs/ prefix)
                 custom_print(FILE, "Using direct ElevenLabs TTS provider")
