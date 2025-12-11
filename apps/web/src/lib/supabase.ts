@@ -46,14 +46,43 @@ export interface Channel {
 // ============================================
 
 export async function checkTeamMembership(userId: string): Promise<TeamMember | null> {
+  // First try by user_id
   const { data, error } = await supabase
     .from('team_members')
     .select('*')
     .eq('user_id', userId)
     .single();
   
-  if (error) return null;
-  return data as TeamMember;
+  if (!error && data) return data as TeamMember;
+  
+  // If not found by user_id, check if team_members table is empty
+  // If empty, create the first user as owner
+  const { count, error: countError } = await supabase
+    .from('team_members')
+    .select('*', { count: 'exact', head: true });
+  
+  if (!countError && count === 0) {
+    // Get user email
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData?.user?.email) {
+      // Create first user as owner
+      const { data: newMember, error: insertError } = await supabase
+        .from('team_members')
+        .insert({
+          user_id: userId,
+          email: userData.user.email.toLowerCase(),
+          role: 'owner'
+        })
+        .select()
+        .single();
+      
+      if (!insertError && newMember) {
+        return newMember as TeamMember;
+      }
+    }
+  }
+  
+  return null;
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
