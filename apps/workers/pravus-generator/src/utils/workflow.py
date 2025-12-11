@@ -200,14 +200,18 @@ class WorkflowManager:
             custom_print(FILE, f"No video files found in mix directory: {mix_path}", error=True)
             return []
         # Determine the number of worker threads based on video count and system resources
-        max_workers = min(len(videos), 3)  # Limit to 3 concurrent video processes to avoid overwhelming system
+        # Get from environment or default to 6 (modern GPUs can handle 6-8 simultaneous NVENC sessions)
+        max_video_workers = int(os.getenv('MAX_VIDEO_WORKERS', '6'))
+        max_workers = min(len(videos), max_video_workers)
         custom_print(FILE, f"Processing {len(videos)} videos with {max_workers} parallel workers")
         # Process videos in parallel using ProcessPoolExecutor with serializable data
         processed_videos = []
         total_videos = len(videos)
         
         # Determine the number of worker processes based on video count and system resources
-        max_workers = min(len(videos), 3)  # Limit to 3 concurrent video processes
+        # Get from environment or default to 6 (RTX 5070/4090 can handle 6-8 simultaneous NVENC sessions)
+        max_video_workers = int(os.getenv('MAX_VIDEO_WORKERS', '6'))
+        max_workers = min(len(videos), max_video_workers)
         custom_print(FILE, f"Processing {len(videos)} videos with {max_workers} parallel processes")
         
         # Process videos in parallel using ProcessPoolExecutor with serializable arguments
@@ -788,7 +792,9 @@ class WorkflowManager:
             return {}
         
         # Determine the number of worker threads based on file count and system resources
-        max_workers = min(len(uploaded_files), 8)  # Use 8 workers to match subtitle generation threading
+        # Get from environment or default to 10 (optimized for 12-core CPUs)
+        max_audio_workers = int(os.getenv('MAX_AUDIO_WORKERS', '10'))
+        max_workers = min(len(uploaded_files), max_audio_workers)
         custom_print(FILE, f"Processing {len(uploaded_files)} audio files with {max_workers} parallel workers")
 
         # Process audio files in parallel

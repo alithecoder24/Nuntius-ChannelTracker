@@ -105,12 +105,16 @@ def get_ffmpeg_encoder_params(use_hardware_acceleration: bool = None, encoder_ty
     if use_hardware_acceleration is None:
         use_hardware_acceleration = nvidia_gpu or apple_silicon
     
+    # Get NVENC preset from environment (p1=fastest, p7=best quality)
+    import os
+    nvenc_preset = os.getenv('NVENC_PRESET', 'p1')
+    
     if use_hardware_acceleration:
         if nvidia_gpu:
             if encoder_type == 'hevc':
                 return {
                     'vcodec': 'hevc_nvenc',
-                    'preset': 'p4',
+                    'preset': nvenc_preset,
                     'cq': 23,
                     'rc': 'vbr',
                 }
@@ -122,7 +126,7 @@ def get_ffmpeg_encoder_params(use_hardware_acceleration: bool = None, encoder_ty
             else:  # h264
                 return {
                     'vcodec': 'h264_nvenc',
-                    'preset': 'p4',
+                    'preset': nvenc_preset,
                     'cq': 23,
                     'rc': 'vbr',
                 }

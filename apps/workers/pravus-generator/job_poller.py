@@ -10,11 +10,16 @@ import json
 import traceback
 import shutil
 import uuid
+import psutil
 from datetime import datetime
 from typing import Dict, Any, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# Resource limits from environment
+MIN_FREE_RAM_GB = float(os.getenv('MIN_FREE_RAM_GB', '4'))
+MAX_CPU_PERCENT = float(os.getenv('MAX_CPU_PERCENT', '95'))
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -70,6 +75,72 @@ POLL_INTERVAL = 5  # seconds
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(ASSETS_DIR, exist_ok=True)
 os.makedirs(PROFILE_DIR, exist_ok=True)
+
+# ============================================
+# SYSTEM RESOURCE CHECKS
+# ============================================
+
+def check_system_resources() -> bool:
+    """
+    Check if system has enough resources to safely process a job.
+    Prevents crashes when too many jobs are queued.
+    
+    Returns:
+        bool: True if resources are available, False if should wait
+    """
+    try:
+        # Check available RAM
+        memory = psutil.virtual_memory()
+        available_gb = memory.available / (1024**3)
+        
+        if available_gb < MIN_FREE_RAM_GB:
+            print(f"  ⚠️ Low memory: {available_gb:.1f}GB available (need {MIN_FREE_RAM_GB}GB). Waiting...")
+            return False
+        
+        # Check CPU isn't overloaded
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        if cpu_percent > MAX_CPU_PERCENT:
+            print(f"  ⚠️ High CPU usage: {cpu_percent:.0f}% (limit: {MAX_CPU_PERCENT}%). Waiting...")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"  Warning: Could not check resources: {e}")
+        return True  # Proceed if we can't check
+
+def get_system_stats() -> Dict[str, Any]:
+    """Get current system resource statistics."""
+    try:
+        memory = psutil.virtual_memory()
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        
+        # Try to get GPU info if available
+        gpu_info = "N/A"
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                parts = result.stdout.strip().split(',')
+                if len(parts) >= 3:
+                    gpu_util = parts[0].strip()
+                    gpu_mem_used = parts[1].strip()
+                    gpu_mem_total = parts[2].strip()
+                    gpu_info = f"{gpu_util}% GPU, {gpu_mem_used}/{gpu_mem_total}MB VRAM"
+        except:
+            pass
+        
+        return {
+            'cpu_percent': cpu_percent,
+            'ram_used_gb': (memory.total - memory.available) / (1024**3),
+            'ram_available_gb': memory.available / (1024**3),
+            'ram_total_gb': memory.total / (1024**3),
+            'gpu_info': gpu_info
+        }
+    except Exception:
+        return {}
 
 # ============================================
 # MOCK TASK MANAGER (replaces Flask task_manager)
@@ -512,6 +583,8 @@ def main():
     
     last_heartbeat = time.time()
     
+    last_stats_print = 0
+    
     try:
         while True:
             # Send heartbeat every 15 seconds
@@ -519,11 +592,26 @@ def main():
                 send_heartbeat('online')
                 last_heartbeat = time.time()
             
+            # Print system stats every 60 seconds
+            if time.time() - last_stats_print > 60:
+                stats = get_system_stats()
+                if stats:
+                    print(f"  📊 System: CPU {stats.get('cpu_percent', 0):.0f}% | "
+                          f"RAM {stats.get('ram_used_gb', 0):.1f}/{stats.get('ram_total_gb', 0):.1f}GB | "
+                          f"GPU: {stats.get('gpu_info', 'N/A')}")
+                last_stats_print = time.time()
+            
             # Check for pending jobs
             jobs = get_pending_jobs()
             
             if jobs:
                 for job in jobs:
+                    # Check system resources before processing each job
+                    if not check_system_resources():
+                        print(f"  ⏳ Job {job['id'][:8]}... waiting for resources...")
+                        time.sleep(10)  # Wait before retrying
+                        continue
+                    
                     process_job(job)
             
             time.sleep(POLL_INTERVAL)
