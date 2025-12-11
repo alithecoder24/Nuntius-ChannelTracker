@@ -314,10 +314,26 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   // Local storage key for this user's profiles
   const profilesStorageKey = `pravus_profiles_${userId}`;
   
-  // Load profiles from localStorage on mount
+  // Load profiles from localStorage on mount (with migration from old key)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(profilesStorageKey);
+      // First, check if we have profiles under the new user-specific key
+      let saved = localStorage.getItem(profilesStorageKey);
+      
+      // If not, try to migrate from the old generic key
+      if (!saved) {
+        const oldKey = 'pravus_profiles';
+        const oldSaved = localStorage.getItem(oldKey);
+        if (oldSaved) {
+          console.log('Migrating profiles from old storage key...');
+          // Move to new key
+          localStorage.setItem(profilesStorageKey, oldSaved);
+          // Remove old key to prevent future confusion
+          localStorage.removeItem(oldKey);
+          saved = oldSaved;
+        }
+      }
+      
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
