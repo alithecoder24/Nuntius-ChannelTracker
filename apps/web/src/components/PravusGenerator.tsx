@@ -860,36 +860,53 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
 
                 {/* Badge Selection */}
                 <div>
-                  <label className="block text-xs font-medium text-[#71717a] mb-2">Select Badges</label>
-                  <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-2 bg-[rgba(15,12,25,0.4)] rounded-lg border border-[rgba(168,85,247,0.1)]">
+                  <label className="block text-xs font-medium text-[#71717a] mb-2">Select Badges ({selectedBadges.length} selected)</label>
+                  <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto p-3 bg-[rgba(15,12,25,0.4)] rounded-lg border border-[rgba(168,85,247,0.1)]">
                     {BADGES.map((badge) => {
                       const isSelected = selectedBadges.includes(badge);
-                      const displayName = badge.split('_').pop()?.replace('.png', '') || badge;
+                      const displayName = badge.split('_').pop()?.replace('.png', '').replace(' 1', '') || badge;
                       return (
-                        <button
+                        <label
                           key={badge}
-                          onClick={() => {
-                            if (!isCreatingProfile && !isEditingProfile) return;
-                            if (isSelected) {
-                              setSelectedBadges(selectedBadges.filter(b => b !== badge));
-                            } else {
-                              setSelectedBadges([...selectedBadges, badge]);
-                            }
-                          }}
-                          disabled={!isCreatingProfile && !isEditingProfile}
-                          className={`p-2 rounded-lg border transition-all ${
-                            isSelected
-                              ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)]'
-                              : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.1)]'
-                          } disabled:opacity-50 hover:border-[rgba(168,85,247,0.25)]`}
+                          className={`relative cursor-pointer group ${(!isCreatingProfile && !isEditingProfile) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           title={displayName}
                         >
-                          <span className="text-xs text-[#a1a1aa] truncate block">{displayName}</span>
-                        </button>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              if (!isCreatingProfile && !isEditingProfile) return;
+                              if (isSelected) {
+                                setSelectedBadges(selectedBadges.filter(b => b !== badge));
+                              } else {
+                                setSelectedBadges([...selectedBadges, badge]);
+                              }
+                            }}
+                            disabled={!isCreatingProfile && !isEditingProfile}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-10 rounded-lg border-2 transition-all flex items-center justify-center overflow-hidden ${
+                            isSelected
+                              ? 'border-[#fb923c] bg-[rgba(234,88,12,0.2)] ring-2 ring-[rgba(234,88,12,0.3)]'
+                              : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.6)] group-hover:border-[rgba(168,85,247,0.4)]'
+                          }`}>
+                            <img 
+                              src={`/badges/${badge}`} 
+                              alt={displayName}
+                              className="w-8 h-8 object-contain"
+                            />
+                          </div>
+                          {isSelected && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#fb923c] rounded-full flex items-center justify-center">
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </label>
                       );
                     })}
                   </div>
-                  <p className="text-xs text-[#52525b] mt-1">Selected: {selectedBadges.length} badges</p>
                 </div>
 
                 {/* Save/Create Button */}
