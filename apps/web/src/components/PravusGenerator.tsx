@@ -549,33 +549,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
           </button>
         </div>
 
-        {/* Upload Setting - Always Visible */}
-        <div className="mb-6 p-4 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.2)]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {uploadToDrive ? <Upload className="w-5 h-5 text-[#fb923c]" /> : <Download className="w-5 h-5 text-[#71717a]" />}
-              <div>
-                <h3 className="text-sm font-semibold text-[#f8fafc]">Upload to Drive</h3>
-                <p className="text-xs text-[#71717a]">
-                  {uploadToDrive 
-                    ? 'Videos will be uploaded to cloud storage' 
-                    : 'Videos will only be saved locally'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setUploadToDrive(!uploadToDrive)}
-              className={`relative w-14 h-7 rounded-full transition-colors ${
-                uploadToDrive ? 'bg-[#fb923c]' : 'bg-[#52525b]'
-              }`}
-            >
-              <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-all ${
-                uploadToDrive ? 'translate-x-7' : 'translate-x-0'
-              }`} />
-            </button>
-          </div>
-        </div>
-
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] text-[#f87171] text-sm">
             {error}
@@ -821,6 +794,39 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             </div>
           </div>
         )}
+
+        {/* Upload Setting */}
+        <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
+          <h3 className="text-lg font-semibold text-[#f8fafc] mb-4">Upload Settings</h3>
+          
+          <div className="mb-4">
+            <button
+              onClick={() => setUploadToDrive(!uploadToDrive)}
+              className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-between ${
+                uploadToDrive
+                  ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)] text-[#fb923c]'
+                  : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.15)] text-[#f8fafc] hover:border-[rgba(168,85,247,0.25)]'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {uploadToDrive ? <Upload className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                {uploadToDrive ? 'Upload to Drive' : 'Local Only'}
+              </span>
+              <div className={`w-12 h-6 rounded-full transition-colors ${
+                uploadToDrive ? 'bg-[#fb923c]' : 'bg-[#52525b]'
+              }`}>
+                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  uploadToDrive ? 'translate-x-6' : 'translate-x-0.5'
+                } mt-0.5`} />
+              </div>
+            </button>
+            <p className="text-xs text-[#71717a] mt-2">
+              {uploadToDrive 
+                ? 'Videos will be uploaded to cloud storage and available for download' 
+                : 'Videos will only be saved locally on your PC'}
+            </p>
+          </div>
+        </div>
 
         {/* Voice Settings (separate from profile) */}
         <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
