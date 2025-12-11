@@ -89,10 +89,23 @@ const MINIMAX_MODELS = [
   { id: 'minimax_default', name: 'MiniMax Default' },
 ];
 
+// Badge filenames must match exactly what's in src/assets/Badges/
 const BADGES = [
-  'Wholesome.png', 'HeartEyes.png', 'LOVE.png', 'PlusOne.png', 'Updoot.png',
-  'Thanks.png', 'Helpful.png', 'BlessUp.png', 'MindBlown.png', 'GOAT.png',
-  'Facepalm.png', 'Shocked.png', 'BuffDoge.png', 'GottheW.png', 'AwesomeAnswer.png'
+  '5izbv4fn0md41_Wholesome.png',
+  '12kz7a7j4v541_HeartEyes.png',
+  'j3azv69qjfn51_LOVE.png',
+  '6vgr8y21i9741_PlusOne.png',
+  '7atjjqpy1mc41_Updoot.png',
+  '8ad2jffnclf41_Thanks.png',
+  'klvxk1wggfd41_Helpful.png',
+  'trfv6ems1md41_BlessUp.png',
+  'wa987k0p4v541_MindBlown.png',
+  'x52x5be57fd41_GOAT.png',
+  'ey2iodron2s41_Facepalm.png',
+  'fck3iedi2ug51_Shocked.png',
+  'zc4a9vk5zmc51_BuffDoge.png',
+  '9avdcwgupta41_GottheW.png',
+  '71v56o5a5v541_AwesomeAnswer.png'
 ];
 
 // Custom styled select
