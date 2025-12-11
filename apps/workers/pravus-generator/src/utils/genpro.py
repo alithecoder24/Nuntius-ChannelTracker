@@ -138,7 +138,7 @@ class GenProTTS:
     
     def get_available_voices(self, force_refresh: bool = False) -> List[Dict]:
         """
-        Returns list of available voices from GenPro API (Labs + Max).
+        Returns list of available voices from GenPro Labs API (ElevenLabs).
         Uses cached voices unless force_refresh is True.
         
         Args:
@@ -148,10 +148,9 @@ class GenProTTS:
             List of dictionaries containing voice information
         """
         if not self._voices_cached or force_refresh:
-            custom_print(FILE, "Fetching voices from GenPro API...")
+            custom_print(FILE, "Fetching voices from GenPro Labs API...")
             
             labs_voices = self._fetch_labs_voices()
-            max_voices = self._fetch_max_voices()
             
             self.voice_list = []
             
@@ -174,35 +173,23 @@ class GenProTTS:
                     'description': ', '.join(description_parts) if description_parts else ''
                 })
             
-            # Add Max (MiniMax) voices
-            for voice in max_voices:
-                tags = voice.get('tag_list', [])
-                self.voice_list.append({
-                    'voice_id': voice['voice_id'],
-                    'voice_name': voice['voice_name'],
-                    'type': 'max',
-                    'description': voice.get('description', ''),
-                    'tags': tags
-                })
-            
-            # Sort by type (labs first) then by name
-            self.voice_list.sort(key=lambda v: (v['type'] != 'labs', v.get('voice_name', '').lower()))
+            # Sort by name
+            self.voice_list.sort(key=lambda v: v.get('voice_name', '').lower())
             self._voices_cached = True
-            custom_print(FILE, f"Retrieved {len(labs_voices)} Labs voices and {len(max_voices)} Max voices from GenPro")
+            custom_print(FILE, f"Retrieved {len(labs_voices)} Labs voices from GenPro")
         else:
             custom_print(FILE, f"Using cached GenPro voices ({len(self.voice_list)} voices)")
         
         return [{
-            "voice_id": f"genpro-{voice['type']}/{voice['voice_id']}",
-            "name": f"genpro-{voice['type']}/{voice['voice_name']}",
+            "voice_id": f"genpro-labs/{voice['voice_id']}",
+            "name": f"genpro-labs/{voice['voice_name']}",
         } for voice in self.voice_list]
     
     def get_available_models(self, force_refresh: bool = False) -> List[Dict]:
         """
-        Returns list of available TTS models for GenPro.
+        Returns list of available TTS models for GenPro Labs (ElevenLabs).
         
-        Labs models: eleven_multilingual_v2, eleven_turbo_v2_5, eleven_flash_v2_5, eleven_v3
-        Max models: speech-2.5-hd-preview, speech-2.5-turbo-preview, speech-02-hd, etc.
+        Available models: eleven_multilingual_v2, eleven_turbo_v2_5, eleven_flash_v2_5, eleven_v3
         
         Args:
             force_refresh: If True, refresh the models list
@@ -211,37 +198,24 @@ class GenProTTS:
             List of dictionaries containing model information
         """
         if not self._models_cached or force_refresh:
-            custom_print(FILE, "Fetching models for GenPro...")
+            custom_print(FILE, "Loading GenPro Labs models...")
             
             # Labs (ElevenLabs) models - from API documentation
-            labs_models = [
-                {"model_id": "eleven_multilingual_v2", "name": "Multilingual v2", "type": "labs"},
-                {"model_id": "eleven_turbo_v2_5", "name": "Turbo v2.5", "type": "labs"},
-                {"model_id": "eleven_flash_v2_5", "name": "Flash v2.5", "type": "labs"},
-                {"model_id": "eleven_v3", "name": "v3", "type": "labs"},
+            self.model_list = [
+                {"model_id": "eleven_multilingual_v2", "name": "Multilingual v2"},
+                {"model_id": "eleven_turbo_v2_5", "name": "Turbo v2.5"},
+                {"model_id": "eleven_flash_v2_5", "name": "Flash v2.5"},
+                {"model_id": "eleven_v3", "name": "v3"},
             ]
             
-            # Max (MiniMax) models - from API documentation
-            max_models = [
-                {"model_id": "speech-2.5-hd-preview", "name": "Speech 2.5 HD Preview", "type": "max"},
-                {"model_id": "speech-2.5-turbo-preview", "name": "Speech 2.5 Turbo Preview", "type": "max"},
-                {"model_id": "speech-02-hd", "name": "Speech 02 HD", "type": "max"},
-                {"model_id": "speech-02-turbo", "name": "Speech 02 Turbo", "type": "max"},
-                {"model_id": "speech-01-hd", "name": "Speech 01 HD", "type": "max"},
-                {"model_id": "speech-01-turbo", "name": "Speech 01 Turbo", "type": "max"},
-                {"model_id": "speech-2.6-hd", "name": "Speech 2.6 HD", "type": "max"},
-                {"model_id": "speech-2.6-turbo", "name": "Speech 2.6 Turbo", "type": "max"},
-            ]
-            
-            self.model_list = labs_models + max_models
             self._models_cached = True
-            custom_print(FILE, f"Loaded {len(labs_models)} Labs models and {len(max_models)} Max models")
+            custom_print(FILE, f"Loaded {len(self.model_list)} GenPro Labs models")
         else:
             custom_print(FILE, f"Using cached GenPro models ({len(self.model_list)} models)")
         
         return [{
             "model_id": model['model_id'],
-            "name": f"genpro-{model['type']}/{model['name']}",
+            "name": f"genpro-labs/{model['name']}",
         } for model in self.model_list]
     
     def convert_text(self, text: str, voice_id: str, output_filename: str,
@@ -250,27 +224,22 @@ class GenProTTS:
                      similarity: float = 0.75, style: float = 0.0,
                      max_wait_time: int = 7200) -> str:
         """
-        Convert text to speech using GenPro API.
-        Automatically routes to Labs or Max API based on voice_id prefix.
+        Convert text to speech using GenPro Labs API (ElevenLabs).
         
         Args:
             text: Text to convert to speech
-            voice_id: Voice ID with prefix (e.g., "genpro-labs/{voice_id}" or "genpro-max/{voice_id}")
+            voice_id: Voice ID with prefix (e.g., "genpro-labs/{voice_id}")
             output_filename: Path to save the output audio file
-            model: TTS model to use
-            speed: Speech speed (0.7-1.2 for Labs, 0.5-2.0 for Max)
-            stability: Voice stability (0.0-1.0, Labs only)
-            similarity: Voice similarity (0.0-1.0, Labs only)
-            style: Voice style (0.0-1.0, Labs only)
+            model: TTS model to use (eleven_multilingual_v2, eleven_turbo_v2_5, etc.)
+            speed: Speech speed (0.7-1.2)
+            stability: Voice stability (0.0-1.0)
+            similarity: Voice similarity (0.0-1.0)
+            style: Voice style (0.0-1.0)
             max_wait_time: Maximum time to wait for task completion in seconds
             
         Returns:
             Path to the generated audio file
         """
-        if not self._voices_cached:
-            self.get_available_voices()
-        
-        voice_type = None
         clean_voice_id = voice_id
         
         # Parse voice ID prefix
@@ -279,36 +248,13 @@ class GenProTTS:
             if len(parts) == 2:
                 prefix = parts[0]
                 clean_voice_id = parts[1]
-                if prefix == "genpro-labs":
-                    voice_type = "labs"
-                elif prefix == "genpro-max":
-                    voice_type = "max"
+                if prefix != "genpro-labs":
+                    custom_print(FILE, f"Warning: Expected 'genpro-labs/' prefix, got '{prefix}'. Using voice ID as-is.")
         
-        if not voice_type:
-            raise ValueError(f"Voice ID '{voice_id}' must include a valid prefix (genpro-labs/ or genpro-max/)")
+        custom_print(FILE, f"Using GenPro Labs voice ID: {clean_voice_id} (Model: {model})")
         
-        # Verify the voice exists in our cached list
-        voice_exists = any(v['voice_id'] == clean_voice_id and v['type'] == voice_type for v in self.voice_list)
-        if not voice_exists:
-            custom_print(FILE, f"Warning: Voice ID '{clean_voice_id}' with type '{voice_type}' not found in cached voices. Proceeding anyway...")
-        
-        # Auto-select appropriate model based on voice type if mismatched
-        if voice_type == "labs" and model.startswith("speech-"):
-            model = "eleven_turbo_v2_5"
-            custom_print(FILE, f"Auto-switched to Labs model: {model}")
-        elif voice_type == "max" and model.startswith("eleven"):
-            model = "speech-2.5-hd-preview"
-            custom_print(FILE, f"Auto-switched to Max model: {model}")
-        
-        custom_print(FILE, f"Using GenPro voice ID: {clean_voice_id} (Type: {voice_type}, Model: {model})")
-        
-        # Route to appropriate API
-        if voice_type == "labs":
-            return self._convert_labs(text, clean_voice_id, output_filename, model, 
-                                      speed, stability, similarity, style, max_wait_time)
-        else:
-            return self._convert_max(text, clean_voice_id, output_filename, model,
-                                     speed, max_wait_time)
+        return self._convert_labs(text, clean_voice_id, output_filename, model, 
+                                  speed, stability, similarity, style, max_wait_time)
     
     def _convert_labs(self, text: str, voice_id: str, output_filename: str,
                       model: str, speed: float, stability: float,

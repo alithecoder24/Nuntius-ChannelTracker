@@ -205,21 +205,18 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     } else if (voiceProvider === 'ai33') {
       return subProvider === 'elevenlabs' ? AI33_ELEVENLABS_VOICES : AI33_MINIMAX_VOICES;
     } else if (voiceProvider === 'genpro') {
-      // GenPro voices - backend will fetch actual voices from GenPro API
-      // For now, provide placeholder (backend handles actual voice selection)
-      if (subProvider === 'elevenlabs') {
-        // GenPro Labs (ElevenLabs) - show some common voice IDs as examples
-        return [
-          { id: '', name: 'Select GenPro Labs voice...' },
-          { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Example)' },
-          { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi (Example)' },
-        ];
-      } else {
-        // GenPro Max (MiniMax) - placeholder
-        return [
-          { id: '', name: 'Select GenPro Max voice...' },
-        ];
-      }
+      // GenPro uses ElevenLabs voices via Labs API
+      return [
+        { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
+        { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
+        { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
+        { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+        { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
+        { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
+        { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold' },
+        { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
+        { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
+      ];
     }
     return ELEVENLABS_VOICES;
   };
@@ -231,20 +228,13 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     } else if (voiceProvider === 'ai33') {
       return subProvider === 'elevenlabs' ? ELEVENLABS_MODELS : MINIMAX_MODELS;
     } else if (voiceProvider === 'genpro') {
-      // GenPro Labs models (ElevenLabs) or GenPro Max models (MiniMax)
-      return subProvider === 'elevenlabs' 
-        ? [
-            { id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2' },
-            { id: 'eleven_turbo_v2_5', name: 'Eleven Turbo v2.5' },
-            { id: 'eleven_flash_v2_5', name: 'Eleven Flash v2.5' },
-            { id: 'eleven_v3', name: 'Eleven v3' },
-          ]
-        : [
-            { id: 'speech-2.5-hd-preview', name: 'Speech 2.5 HD Preview' },
-            { id: 'speech-2.5-turbo-preview', name: 'Speech 2.5 Turbo Preview' },
-            { id: 'speech-02-hd', name: 'Speech 02 HD' },
-            { id: 'speech-02-turbo', name: 'Speech 02 Turbo' },
-          ];
+      // GenPro uses ElevenLabs models via Labs API
+      return [
+        { id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2' },
+        { id: 'eleven_turbo_v2_5', name: 'Eleven Turbo v2.5' },
+        { id: 'eleven_flash_v2_5', name: 'Eleven Flash v2.5' },
+        { id: 'eleven_v3', name: 'Eleven v3' },
+      ];
     }
     return ELEVENLABS_MODELS;
   };
@@ -881,11 +871,11 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
               </div>
             </div>
 
-            {/* Sub-Provider (only for AI33 and GenPro) */}
-            {(voiceProvider === 'ai33' || voiceProvider === 'genpro') && (
+            {/* Sub-Provider (only for AI33) */}
+            {voiceProvider === 'ai33' && (
               <div>
                 <label className="block text-xs font-medium text-[#71717a] mb-1">
-                  {voiceProvider === 'ai33' ? 'AI33 via' : 'GenPro via'}
+                  AI33 via
                 </label>
                 <div className="flex flex-col gap-1">
                   {SUB_PROVIDERS.map(sub => (
