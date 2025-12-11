@@ -311,36 +311,58 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [voiceProvider, subProvider]);
 
-  // Get the localStorage key for profiles
-  const getProfilesKey = () => `pravus_profiles_${userId}`;
+  // Storage key - simple and consistent
+  const STORAGE_KEY = 'pravus_reddit_profiles';
   
   // Load profiles from localStorage on mount
   useEffect(() => {
-    const storageKey = getProfilesKey();
-    console.log('[Profiles] Loading profiles for userId:', userId, 'key:', storageKey);
+    console.log('[Profiles] === LOADING PROFILES ===');
+    console.log('[Profiles] All localStorage keys:', Object.keys(localStorage));
+    
+    // Dump all localStorage for debugging
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('pravus') || key.includes('profile'))) {
+        console.log(`[Profiles] Found key "${key}":`, localStorage.getItem(key)?.substring(0, 100));
+      }
+    }
     
     try {
-      // First, check new user-specific key
-      let saved = localStorage.getItem(storageKey);
+      // Try multiple possible keys
+      const keysToTry = [
+        STORAGE_KEY,
+        `pravus_profiles_${userId}`,
+        'pravus_profiles',
+      ];
       
-      // If not found, try old generic key and migrate
-      if (!saved) {
-        const oldSaved = localStorage.getItem('pravus_profiles');
-        if (oldSaved) {
-          console.log('[Profiles] Migrating from old key');
-          localStorage.setItem(storageKey, oldSaved);
-          saved = oldSaved;
+      let foundProfiles: Profile[] = [];
+      
+      for (const key of keysToTry) {
+        if (foundProfiles.length > 0) break;
+        
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.channel_name) {
+              console.log(`[Profiles] ✓ Found ${parsed.length} profiles in key "${key}"`);
+              foundProfiles = parsed;
+              
+              // Migrate to the standard key if needed
+              if (key !== STORAGE_KEY) {
+                console.log(`[Profiles] Migrating from "${key}" to "${STORAGE_KEY}"`);
+                localStorage.setItem(STORAGE_KEY, saved);
+              }
+            }
+          } catch {}
         }
       }
       
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          console.log('[Profiles] Loaded profiles:', parsed.map((p: Profile) => p.channel_name));
-          setProfiles(parsed);
-        }
+      if (foundProfiles.length > 0) {
+        setProfiles(foundProfiles);
+        console.log('[Profiles] Loaded:', foundProfiles.map(p => p.channel_name));
       } else {
-        console.log('[Profiles] No saved profiles found');
+        console.log('[Profiles] No profiles found in any key');
       }
     } catch (e) {
       console.error('[Profiles] Error loading:', e);
@@ -349,24 +371,23 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
 
   // Save profiles to localStorage
   const saveProfiles = (newProfiles: Profile[]) => {
-    const storageKey = getProfilesKey();
-    console.log('[Profiles] Saving to key:', storageKey, 'profiles:', newProfiles.map(p => p.channel_name));
+    console.log('[Profiles] === SAVING PROFILES ===');
+    console.log('[Profiles] Saving:', newProfiles.map(p => p.channel_name));
     
     // Update state
     setProfiles(newProfiles);
     
-    // Save to localStorage immediately
+    // Save to localStorage
     try {
       const json = JSON.stringify(newProfiles);
-      localStorage.setItem(storageKey, json);
+      localStorage.setItem(STORAGE_KEY, json);
       
-      // Verify it was saved
-      const verify = localStorage.getItem(storageKey);
-      if (verify === json) {
-        console.log('[Profiles] ✓ Save verified successfully');
-      } else {
-        console.error('[Profiles] ✗ Save verification failed!');
-      }
+      // Also save to user-specific key as backup
+      localStorage.setItem(`pravus_profiles_${userId}`, json);
+      
+      // Verify
+      const verify = localStorage.getItem(STORAGE_KEY);
+      console.log('[Profiles] Saved to localStorage:', verify ? '✓ Success' : '✗ Failed');
     } catch (e) {
       console.error('[Profiles] Error saving:', e);
     }
