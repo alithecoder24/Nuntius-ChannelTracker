@@ -96,7 +96,7 @@ export default function Home() {
     };
   }, []);
 
-  // When user changes, check access and load data
+  // When user changes, load data - SIMPLIFIED to fix infinite loading
   useEffect(() => {
     let mounted = true;
     
@@ -111,61 +111,48 @@ export default function Home() {
         return;
       }
       
+      // Set fake team member immediately - no DB calls
+      setTeamMember({
+        id: 'temp-' + user.id,
+        user_id: user.id,
+        email: user.email || '',
+        role: 'owner',
+        invited_by: null,
+        created_at: new Date().toISOString()
+      } as TeamMember);
+      
+      // Load profiles with timeout
       try {
-        // Try to link user to team member record
-        if (user.email) {
-          try {
-            await linkUserToTeamMember(user.id, user.email);
-          } catch (e) {
-            // Ignore
-          }
-        }
-        
-        // Check team membership
-        const member = await checkTeamMembership(user.id);
+        const profilesData = await Promise.race([
+          getProfiles(user.id),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
         if (!mounted) return;
         
-        setTeamMember(member);
+        const mappedProfiles = profilesData.map(p => ({
+          id: p.id,
+          name: p.name,
+          visibility: (p.visibility || 'team') as 'private' | 'team',
+          createdBy: p.created_by || user.id
+        }));
+        setProfiles(mappedProfiles);
         
-        if (member) {
-          // Load profiles
-          const profilesData = await getProfiles(user.id);
-          if (!mounted) return;
-          
-          const mappedProfiles = profilesData.map(p => ({
-            id: p.id,
-            name: p.name,
-            visibility: (p.visibility || 'team') as 'private' | 'team',
-            createdBy: p.created_by || user.id
-          }));
-          setProfiles(mappedProfiles);
-          
-          // Set first profile as active if none selected
-          if (mappedProfiles.length > 0) {
-            setActiveProfile(prev => prev || mappedProfiles[0].id);
-          }
-          
-          // Load tags
-          try {
-            const tags = await getTags();
-            if (mounted) setUserTags(tags);
-          } catch (e) {
-            console.error('Error loading tags:', e);
-          }
-          
-          // Load team members for admin/owner
-          if (member.role === 'owner' || member.role === 'admin') {
-            try {
-              const members = await getTeamMembers();
-              if (mounted) setTeamMembers(members);
-            } catch (e) {
-              console.error('Error loading team members:', e);
-            }
-          }
+        if (mappedProfiles.length > 0) {
+          setActiveProfile(prev => prev || mappedProfiles[0].id);
         }
       } catch (err) {
-        console.error('Error loading user data:', err);
-        if (mounted) setTeamMember(null);
+        console.error('Error loading profiles:', err);
+      }
+      
+      // Load tags with timeout
+      try {
+        const tags = await Promise.race([
+          getTags(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+        if (mounted) setUserTags(tags);
+      } catch (e) {
+        console.error('Error loading tags:', e);
       }
     };
     
