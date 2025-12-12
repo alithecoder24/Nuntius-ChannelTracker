@@ -303,7 +303,7 @@ export interface VideoJob {
   id: string;
   user_id: string;
   tool_type: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   input_data: {
     project_name: string;
     script?: string;
