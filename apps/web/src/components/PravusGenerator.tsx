@@ -318,6 +318,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   useEffect(() => {
     console.log('[Profiles] === LOADING PROFILES ===');
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:LOAD_START',message:'useEffect LOAD triggered',data:{userId,storageKey:STORAGE_KEY},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
+    // #endregion
+    
     try {
       // Collect ALL profiles from ALL keys, then merge by ID
       const allProfiles = new Map<string, Profile>();
@@ -327,6 +331,12 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
         `pravus_profiles_${userId}`,
         'pravus_profiles',
       ];
+      
+      // #region agent log
+      const rawStorage: Record<string, string|null> = {};
+      keysToCheck.forEach(k => rawStorage[k] = localStorage.getItem(k));
+      fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:RAW_STORAGE',message:'Raw localStorage contents',data:{rawStorage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,E'})}).catch(()=>{});
+      // #endregion
       
       for (const key of keysToCheck) {
         const saved = localStorage.getItem(key);
@@ -350,6 +360,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
       
       const mergedProfiles = Array.from(allProfiles.values());
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:MERGED_RESULT',message:'After merging profiles',data:{count:mergedProfiles.length,names:mergedProfiles.map(p=>p.channel_name)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
+      // #endregion
+      
       if (mergedProfiles.length > 0) {
         console.log('[Profiles] ✓ Loaded:', mergedProfiles.map(p => p.channel_name));
         setProfiles(mergedProfiles);
@@ -368,19 +382,36 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   const saveProfiles = (newProfiles: Profile[]) => {
     console.log('[Profiles] === SAVING ===', newProfiles.map(p => p.channel_name));
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:SAVE_START',message:'saveProfiles called',data:{count:newProfiles.length,names:newProfiles.map(p=>p.channel_name),userId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,D'})}).catch(()=>{});
+    // #endregion
+    
     // Update state
     setProfiles(newProfiles);
     
     // Save to localStorage (to ALL keys for redundancy)
     try {
       const json = JSON.stringify(newProfiles);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:JSON_SERIALIZED',message:'JSON before save',data:{jsonLength:json.length,jsonPreview:json.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      
       localStorage.setItem(STORAGE_KEY, json);
       localStorage.setItem(`pravus_profiles_${userId}`, json);
       localStorage.setItem('pravus_profiles', json); // Legacy key too
       
+      // #region agent log
+      const verifyAfterSave = localStorage.getItem(STORAGE_KEY);
+      fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:VERIFY_SAVE',message:'Verification after save',data:{saved:!!verifyAfterSave,length:verifyAfterSave?.length,preview:verifyAfterSave?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
       console.log('[Profiles] ✓ Saved to all keys');
     } catch (e) {
       console.error('[Profiles] Error saving:', e);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f68d1c2e-c1ee-4852-9bac-d373321de254',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PravusGenerator.tsx:SAVE_ERROR',message:'Error during save',data:{error:String(e)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     }
   };
 
