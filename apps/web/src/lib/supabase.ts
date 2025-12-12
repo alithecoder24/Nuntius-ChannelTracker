@@ -527,3 +527,32 @@ export async function deleteRedditProfile(profileId: string): Promise<void> {
   
   if (error) throw error;
 }
+
+// Subscribe to Reddit profile changes for real-time updates
+export async function subscribeToRedditProfiles(
+  userId: string, 
+  callback: (profiles: RedditProfile[]) => void
+) {
+  // Initial fetch
+  const initialProfiles = await getRedditProfiles(userId);
+  callback(initialProfiles);
+  
+  // Subscribe to changes
+  return supabase
+    .channel('reddit_profiles_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'reddit_profiles',
+        filter: `user_id=eq.${userId}`,
+      },
+      async () => {
+        // Re-fetch all profiles on any change for simplicity
+        const updatedProfiles = await getRedditProfiles(userId);
+        callback(updatedProfiles);
+      }
+    )
+    .subscribe();
+}

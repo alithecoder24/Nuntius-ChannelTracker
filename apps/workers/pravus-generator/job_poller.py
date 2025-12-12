@@ -403,7 +403,8 @@ def process_job(job: dict):
     print(f"{'='*50}")
     
     send_heartbeat('busy')
-    update_job_status(job_id, 'processing', 5, f"Initializing job for {channel_name}...")
+    update_job_status(job_id, 'processing', 2, f"🚀 Starting job for {channel_name}...")
+    update_job_status(job_id, 'processing', 5, f"📁 Creating output folders...")
     
     # Create temp profile
     profile_id = None
@@ -436,7 +437,7 @@ def process_job(job: dict):
         # Create temp profile from input_data
         profile_id = create_temp_profile(job_id, input_data)
         
-        update_job_status(job_id, 'processing', 10, "Configuring voice settings...")
+        update_job_status(job_id, 'processing', 8, "🎙️ Configuring voice settings...")
         
         # Extract settings
         channel_name = input_data.get('channel_name', 'Channel')
@@ -479,7 +480,7 @@ def process_job(job: dict):
             })
         
         print(f"  Saved {len(temp_script_files)} script file(s)")
-        update_job_status(job_id, 'processing', 15, f"Processing {len(temp_script_files)} script(s)...")
+        update_job_status(job_id, 'processing', 12, f"📝 Loading {len(temp_script_files)} script(s)...")
         
         # Initialize task in mock task manager
         task_manager.create_task(job_id, {
@@ -502,7 +503,7 @@ def process_job(job: dict):
             status_callback=status_callback
         )
         
-        update_job_status(job_id, 'processing', 25, "Generating audio with TTS...")
+        update_job_status(job_id, 'processing', 15, "🎤 Starting audio generation...")
         
         # Process the task
         print(f"  Starting workflow processing...")
@@ -515,7 +516,7 @@ def process_job(job: dict):
             uploaded_files_info=uploaded_files_info
         )
         
-        update_job_status(job_id, 'processing', 85, "Finalizing video...")
+        update_job_status(job_id, 'processing', 88, "🔄 Finalizing output files...")
         
         # Find output video
         if result and result.get('success'):
@@ -530,7 +531,7 @@ def process_job(job: dict):
                 video_path = os.path.join(video_dir, video_files[0])
                 print(f"  Video generated: {video_path}")
                 
-                update_job_status(job_id, 'processing', 90, "Video rendered! Uploading...")
+                update_job_status(job_id, 'processing', 92, "☁️ Uploading to cloud...")
                 
                 # Check if upload to drive is enabled (default to True for backward compatibility)
                 upload_to_drive = input_data.get('upload_to_drive', True)

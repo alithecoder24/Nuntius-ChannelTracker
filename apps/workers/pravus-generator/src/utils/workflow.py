@@ -272,6 +272,15 @@ class WorkflowManager:
                         video_obj.final_video_path = result.get('final_video_path')
                         processed_videos.append(video_obj)
                         custom_print(FILE, f"Successfully processed video: {base_name}")
+                        
+                        # Send granular progress update for each completed video
+                        video_progress = 70 + int((len(processed_videos) / total_videos) * 18)  # Progress from 70% to 88%
+                        self.update_status(
+                            status="processing", 
+                            stage="video", 
+                            message=f"🎬 Video rendered ({len(processed_videos)}/{total_videos}): {base_name[:25]}...",
+                            progress=video_progress
+                        )
                     else:
                         custom_print(FILE, f"Failed to process video: {base_name}", error=True)
                         
@@ -282,6 +291,8 @@ class WorkflowManager:
                 except Exception as e:
                     custom_print(FILE, f"Exception processing video {base_name}: {str(e)}", error=True)
         
+        # Final video completion status
+        self.update_status(status="processing", stage="video", message="✅ All videos rendered!", progress=88)
         custom_print(FILE, f"Video generation completed. {len(processed_videos)}/{total_videos} videos processed successfully. Files saved to {output_dir}")
         return processed_videos
     
@@ -457,7 +468,9 @@ class WorkflowManager:
                 results["errors"].append("Failed to process audio files")
                 return results
 
-            self.update_status(status="processing", stage="card", message="Generating intro cards...", progress=45)
+            self.update_status(status="processing", stage="audio", message="✅ Audio complete! Generating captions...", progress=42)
+            
+            self.update_status(status="processing", stage="card", message="🖼️ Creating intro cards...", progress=48)
             
             # Use the workflow module to generate images
             _, generated_cards = self.generate_images(
@@ -506,7 +519,8 @@ class WorkflowManager:
                     custom_print(FILE, f"Task {self.task_id} was cancelled, skipping video generation")
                     return results
                     
-                self.update_status(status="processing", stage="video", message="Generating background videos...", progress=75)
+                self.update_status(status="processing", stage="video", message="🎬 Selecting background clips...", progress=60)
+                self.update_status(status="processing", stage="video", message="🎬 Rendering videos with effects...", progress=70)
                 # Use the workflow module to generate videos
                 processed_videos = self.generate_videos(
                     videos=videos,
@@ -815,6 +829,7 @@ class WorkflowManager:
         # Process audio files in parallel
         processed_videos = {}
         total_files = len(uploaded_files)
+        completed_count = 0
         
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="AudioWorker") as executor:
             # Submit all audio processing tasks
@@ -833,12 +848,21 @@ class WorkflowManager:
                 file_path = future_to_file[future]
                 try:
                     result = future.result()
+                    completed_count += 1
                     if result:
                         # Create a base name for the video object
                         original_filename = filename_mapping.get(file_path, os.path.basename(file_path))
                         base_name = os.path.splitext(original_filename)[0]
                         processed_videos[base_name] = result
                         custom_print(FILE, f"Successfully processed audio file: {original_filename}")
+                        # Send granular progress update for each completed audio file
+                        audio_progress = 15 + int((completed_count / total_files) * 25)  # Progress from 15% to 40%
+                        self.update_status(
+                            status="processing", 
+                            stage="audio", 
+                            message=f"🎤 Audio generated ({completed_count}/{total_files}): {base_name[:30]}...",
+                            progress=audio_progress
+                        )
                     else:
                         custom_print(FILE, f"Failed to process audio file: {file_path}", error=True)
                 except Exception as e:

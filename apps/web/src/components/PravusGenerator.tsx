@@ -9,7 +9,8 @@ import {
 import { 
   createVideoJob, getVideoJobs, deleteVideoJob, subscribeToVideoJobs, 
   getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat,
-  getRedditProfiles, createRedditProfile, updateRedditProfile, deleteRedditProfile, type RedditProfile
+  getRedditProfiles, createRedditProfile, updateRedditProfile, deleteRedditProfile, 
+  subscribeToRedditProfiles, type RedditProfile
 } from '@/lib/supabase';
 
 // Types - Use RedditProfile from supabase
@@ -201,6 +202,82 @@ function StyledSelect({ value, onChange, options, placeholder }: {
   );
 }
 
+// Elapsed timer component for job cards
+function ElapsedTimer({ startTime, isRunning }: { startTime: string | null; isRunning: boolean }) {
+  const [elapsed, setElapsed] = useState(0);
+  
+  useEffect(() => {
+    if (!startTime) return;
+    
+    const start = new Date(startTime).getTime();
+    
+    // Calculate initial elapsed time
+    const calcElapsed = () => Math.floor((Date.now() - start) / 1000);
+    setElapsed(calcElapsed());
+    
+    // Only run interval if still processing
+    if (!isRunning) return;
+    
+    const interval = setInterval(() => {
+      setElapsed(calcElapsed());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, isRunning]);
+  
+  if (!startTime) return null;
+  
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  
+  return (
+    <span className="flex items-center gap-1 text-xs text-[#a1a1aa]">
+      <Clock className="w-3 h-3" />
+      {minutes}:{seconds.toString().padStart(2, '0')}
+    </span>
+  );
+}
+
+// Job step indicator component
+function JobStepIndicator({ currentStep, totalSteps = 5 }: { currentStep: number; totalSteps?: number }) {
+  const steps = ['Init', 'Audio', 'Captions', 'Video', 'Upload'];
+  
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      {steps.map((step, idx) => {
+        const isCompleted = idx < currentStep;
+        const isCurrent = idx === currentStep;
+        
+        return (
+          <div key={step} className="flex items-center">
+            <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+              isCompleted 
+                ? 'bg-[rgba(74,222,128,0.15)] text-[#4ade80]' 
+                : isCurrent
+                  ? 'bg-[rgba(251,146,60,0.15)] text-[#fb923c] animate-pulse'
+                  : 'bg-[rgba(113,113,122,0.1)] text-[#52525b]'
+            }`}>
+              {isCompleted ? '✓' : isCurrent ? '⏳' : '○'} {step}
+            </div>
+            {idx < steps.length - 1 && (
+              <div className={`w-1 h-0.5 mx-0.5 ${isCompleted ? 'bg-[#4ade80]' : 'bg-[#27272a]'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Helper to determine current step from progress
+function getStepFromProgress(progress: number): number {
+  if (progress < 15) return 0;      // Init
+  if (progress < 50) return 1;      // Audio
+  if (progress < 65) return 2;      // Captions
+  if (progress < 90) return 3;      // Video
+  return 4;                          // Upload
+}
+
 export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   // Profiles state
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -304,22 +381,48 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   // Loading state for profiles
   const [profilesLoading, setProfilesLoading] = useState(true);
   
-  // Load profiles from Supabase on mount
+  // Load profiles from Supabase with real-time subscription
   useEffect(() => {
-    const loadProfiles = async () => {
+    let mounted = true;
+    let subscription: any = null;
+    
+    const setupProfileSubscription = async () => {
       try {
         setProfilesLoading(true);
-        const dbProfiles = await getRedditProfiles(userId);
-        console.log('[Profiles] Loaded from Supabase:', dbProfiles.map(p => p.channel_name));
-        setProfiles(dbProfiles);
+        
+        // Subscribe to profile changes - this also does initial fetch
+        subscription = await subscribeToRedditProfiles(userId, (updatedProfiles) => {
+          if (mounted) {
+            console.log('[Profiles] Updated:', updatedProfiles.map(p => p.channel_name));
+            setProfiles(updatedProfiles);
+            setProfilesLoading(false);
+          }
+        });
       } catch (e) {
-        console.error('[Profiles] Error loading:', e);
-      } finally {
-        setProfilesLoading(false);
+        console.error('[Profiles] Error setting up subscription:', e);
+        // Fallback to one-time fetch
+        try {
+          const dbProfiles = await getRedditProfiles(userId);
+          if (mounted) {
+            setProfiles(dbProfiles);
+          }
+        } catch (fetchError) {
+          console.error('[Profiles] Fallback fetch failed:', fetchError);
+        }
+        if (mounted) {
+          setProfilesLoading(false);
+        }
       }
     };
     
-    loadProfiles();
+    setupProfileSubscription();
+    
+    return () => {
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, [userId]);
 
   // Load jobs and subscribe to updates
@@ -679,6 +782,17 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {/* Loading skeleton for profiles */}
+            {profilesLoading && profiles.length === 0 && (
+              <>
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="p-3 rounded-xl border border-[rgba(168,85,247,0.15)] bg-[rgba(15,12,25,0.4)] animate-pulse flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-full bg-[rgba(168,85,247,0.2)]" />
+                    <div className="w-16 h-3 rounded bg-[rgba(168,85,247,0.2)]" />
+                  </div>
+                ))}
+              </>
+            )}
             {profiles.map(profile => (
               <div
                 key={profile.id}
@@ -1080,10 +1194,12 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
             onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
             onDrop={handleFileDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`p-6 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+            className={`p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
               isDragging
-                ? 'border-[#fb923c] bg-[rgba(234,88,12,0.1)]'
-                : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)]'
+                ? 'border-[#fb923c] bg-[rgba(251,146,60,0.15)] shadow-[0_0_25px_rgba(251,146,60,0.3)] border-solid'
+                : scriptFiles.length > 0
+                  ? 'border-[#fb923c] bg-[rgba(251,146,60,0.08)] border-solid hover:bg-[rgba(251,146,60,0.12)]'
+                  : 'border-[rgba(168,85,247,0.2)] bg-[rgba(15,12,25,0.3)] hover:border-[rgba(168,85,247,0.4)] border-dashed'
             }`}
           >
             <input
@@ -1099,9 +1215,21 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
               }}
             />
             <div className="text-center">
-              <FileText className={`w-10 h-10 mx-auto mb-2 ${isDragging ? 'text-[#fb923c]' : 'text-[#71717a]'}`} />
-              <p className="text-sm text-[#a1a1aa]">Drop .txt files here or click to browse</p>
-              <p className="text-xs text-[#52525b] mt-1">{scriptFiles.length} file{scriptFiles.length !== 1 ? 's' : ''} selected</p>
+              <FileText className={`w-10 h-10 mx-auto mb-2 transition-colors ${
+                isDragging || scriptFiles.length > 0 ? 'text-[#fb923c]' : 'text-[#71717a]'
+              }`} />
+              <p className={`text-sm transition-colors ${
+                isDragging ? 'text-[#fb923c] font-medium' : 'text-[#a1a1aa]'
+              }`}>
+                {isDragging ? '✨ Release to add scripts!' : 'Drop .txt files here or click to browse'}
+              </p>
+              <p className={`text-xs mt-1 transition-colors ${
+                scriptFiles.length > 0 ? 'text-[#fb923c]' : 'text-[#52525b]'
+              }`}>
+                {scriptFiles.length > 0 
+                  ? `✓ ${scriptFiles.length} script${scriptFiles.length !== 1 ? 's' : ''} ready`
+                  : 'No files selected'}
+              </p>
             </div>
           </div>
           
@@ -1109,11 +1237,14 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
           {scriptFiles.length > 0 && (
             <div className="mt-3 space-y-2">
               {scriptFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.1)]">
-                  <span className="text-sm text-[#f8fafc] truncate">{file.name}</span>
+                <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.25)] group hover:border-[rgba(251,146,60,0.4)] transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[#fb923c]">✓</span>
+                    <span className="text-sm text-[#f8fafc] truncate">{file.name}</span>
+                  </div>
                   <button
-                    onClick={() => setScriptFiles(prev => prev.filter((_, i) => i !== idx))}
-                    className="text-[#71717a] hover:text-[#f87171]"
+                    onClick={(e) => { e.stopPropagation(); setScriptFiles(prev => prev.filter((_, i) => i !== idx)); }}
+                    className="text-[#71717a] hover:text-[#f87171] opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1172,12 +1303,21 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                     const inputData = job.input_data as any;
                     const scriptCount = inputData.scripts?.length || 1;
                     const profilePic = inputData.profile_pic;
+                    const backgroundName = inputData.background_video || '';
                     
                     return (
-                      <div key={job.id} className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)] transition-colors group">
+                      <div key={job.id} className={`p-3 rounded-xl border transition-all ${
+                        job.status === 'processing' 
+                          ? 'bg-[rgba(251,146,60,0.05)] border-[rgba(251,146,60,0.25)]' 
+                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)]'
+                      } group`}>
                         <div className="flex items-center gap-3">
                           {/* Profile Picture */}
-                          <div className="w-10 h-10 rounded-full bg-[rgba(168,85,247,0.2)] overflow-hidden border-2 border-[rgba(168,85,247,0.3)] flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-full overflow-hidden border-2 flex-shrink-0 ${
+                            job.status === 'processing' 
+                              ? 'border-[rgba(251,146,60,0.4)] bg-[rgba(251,146,60,0.2)]' 
+                              : 'border-[rgba(168,85,247,0.3)] bg-[rgba(168,85,247,0.2)]'
+                          }`}>
                             {profilePic ? (
                               <img src={profilePic} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -1188,18 +1328,27 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                           </div>
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[#f8fafc] font-medium text-sm truncate">{inputData.channel_name || 'Untitled'}</p>
-                              {/* Status Badge */}
-                              {job.status === 'processing' ? (
-                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(234,88,12,0.15)] text-[#fb923c] text-xs">
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                  Generating
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24] text-xs">
-                                  Queued
-                                </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-[#f8fafc] font-medium text-sm truncate">{inputData.channel_name || 'Untitled'}</p>
+                                {/* Status Badge */}
+                                {job.status === 'processing' ? (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(234,88,12,0.15)] text-[#fb923c] text-xs">
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Generating
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24] text-xs">
+                                    Queued
+                                  </span>
+                                )}
+                              </div>
+                              {/* Timer */}
+                              {job.status === 'processing' && (
+                                <ElapsedTimer 
+                                  startTime={job.started_at || job.created_at} 
+                                  isRunning={job.status === 'processing'} 
+                                />
                               )}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-[#71717a]">
@@ -1207,27 +1356,41 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                                 <FileText className="w-3 h-3" />
                                 {scriptCount} script{scriptCount > 1 ? 's' : ''}
                               </span>
+                              {backgroundName && (
+                                <>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1">
+                                    <Video className="w-3 h-3" />
+                                    {backgroundName}
+                                  </span>
+                                </>
+                              )}
                               <span>•</span>
                               <span>{formatTime(job.created_at)}</span>
                             </div>
                             {/* Progress bar for processing jobs */}
                             {job.status === 'processing' && (
                               <div className="mt-2">
-                                <div className="h-1.5 bg-[rgba(168,85,247,0.1)] rounded-full overflow-hidden">
+                                <div className="h-2 bg-[rgba(168,85,247,0.1)] rounded-full overflow-hidden">
                                   <div 
-                                    className="h-full bg-gradient-to-r from-[#fb923c] to-[#fbbf24] rounded-full transition-all duration-500"
+                                    className="h-full bg-gradient-to-r from-[#fb923c] to-[#fbbf24] rounded-full transition-all duration-500 relative overflow-hidden"
                                     style={{ width: `${job.progress || 0}%` }}
-                                  />
+                                  >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                                  </div>
                                 </div>
                                 {/* Status message */}
-                                <div className="flex items-center justify-between mt-1">
-                                  <span className="text-xs text-[#a1a1aa] truncate">
+                                <div className="flex items-center justify-between mt-1.5">
+                                  <span className="text-xs text-[#fb923c] font-medium truncate flex items-center gap-1">
+                                    <span className="animate-pulse">●</span>
                                     {job.status_message || 'Starting...'}
                                   </span>
-                                  <span className="text-xs text-[#fb923c] font-medium ml-2">
+                                  <span className="text-xs text-[#a1a1aa] font-medium ml-2">
                                     {job.progress || 0}%
                                   </span>
                                 </div>
+                                {/* Step indicators */}
+                                <JobStepIndicator currentStep={getStepFromProgress(job.progress || 0)} />
                               </div>
                             )}
                           </div>
