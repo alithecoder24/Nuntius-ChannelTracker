@@ -471,9 +471,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
       setSelectedProfileId(newProfile.id);
       setIsCreatingProfile(false);
       setError(null);
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('[Profiles] Create error:', e);
-      setError('Failed to create profile. Please try again.');
+      const errMsg = e instanceof Error ? e.message : String(e);
+      setError(`Failed to create profile: ${errMsg}`);
     }
   };
 
