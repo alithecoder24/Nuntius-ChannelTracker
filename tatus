@@ -1,0 +1,343 @@
+warning: in the working copy of 'apps/web/src/app/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/components/PravusGenerator.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/src/lib/supabase.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/vercel.json', LF will be replaced by CRLF the next time Git touches it
+diff --git a/README.md b/README.md
+index 3127a99..63694cb 100644
+--- a/README.md
++++ b/README.md
+@@ -68,3 +68,4 @@ The web app deploys to Vercel automatically. Workers run locally on your machine
+ ```
+ 
+ 
++
+diff --git a/apps/web/src/app/api/r2/delete/route.ts b/apps/web/src/app/api/r2/delete/route.ts
+index 45a7648..8eed535 100644
+--- a/apps/web/src/app/api/r2/delete/route.ts
++++ b/apps/web/src/app/api/r2/delete/route.ts
+@@ -32,3 +32,4 @@ export async function POST(request: NextRequest) {
+ }
+ 
+ 
++
+diff --git a/apps/web/src/app/page.tsx b/apps/web/src/app/page.tsx
+index cdd98a8..f6d93a6 100644
+--- a/apps/web/src/app/page.tsx
++++ b/apps/web/src/app/page.tsx
+@@ -74,24 +74,11 @@ export default function Home() {
+   useEffect(() => {
+     let mounted = true;
+     
+-    // Failsafe: Force loading to complete after 3 seconds
+-    const timeout = setTimeout(() => {
+-      if (mounted && loading) {
+-        console.warn('Auth timeout - forcing load complete');
+-        setLoading(false);
+-      }
+-    }, 3000);
+-    
+     const initAuth = async () => {
+-      try {
+-        const { data: { session } } = await supabase.auth.getSession();
+-        if (mounted) {
+-          setUser(session?.user ?? null);
+-          setLoading(false);
+-        }
+-      } catch (err) {
+-        console.error('Auth error:', err);
+-        if (mounted) setLoading(false);
++      const { data: { session } } = await supabase.auth.getSession();
++      if (mounted) {
++        setUser(session?.user ?? null);
++        setLoading(false);
+       }
+     };
+     
+@@ -105,12 +92,11 @@ export default function Home() {
+     
+     return () => {
+       mounted = false;
+-      clearTimeout(timeout);
+       subscription.unsubscribe();
+     };
+   }, []);
+ 
+-  // When user changes, load data - SIMPLIFIED to fix infinite loading
++  // When user changes, check access and load data
+   useEffect(() => {
+     let mounted = true;
+     
+@@ -125,48 +111,61 @@ export default function Home() {
+         return;
+       }
+       
+-      // Set fake team member immediately - no DB calls
+-      setTeamMember({
+-        id: 'temp-' + user.id,
+-        user_id: user.id,
+-        email: user.email || '',
+-        role: 'owner',
+-        invited_by: null,
+-        created_at: new Date().toISOString()
+-      } as TeamMember);
+-      
+-      // Load profiles with timeout
+       try {
+-        const profilesData = await Promise.race([
+-          getProfiles(user.id),
+-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+-        ]);
++        // Try to link user to team member record
++        if (user.email) {
++          try {
++            await linkUserToTeamMember(user.id, user.email);
++          } catch (e) {
++            // Ignore
++          }
++        }
++        
++        // Check team membership
++        const member = await checkTeamMembership(user.id);
+         if (!mounted) return;
+         
+-        const mappedProfiles = profilesData.map(p => ({
+-          id: p.id,
+-          name: p.name,
+-          visibility: (p.visibility || 'team') as 'private' | 'team',
+-          createdBy: p.created_by || user.id
+-        }));
+-        setProfiles(mappedProfiles);
++        setTeamMember(member);
+         
+-        if (mappedProfiles.length > 0) {
+-          setActiveProfile(prev => prev || mappedProfiles[0].id);
++        if (member) {
++          // Load profiles
++          const profilesData = await getProfiles(user.id);
++          if (!mounted) return;
++          
++          const mappedProfiles = profilesData.map(p => ({
++            id: p.id,
++            name: p.name,
++            visibility: (p.visibility || 'team') as 'private' | 'team',
++            createdBy: p.created_by || user.id
++          }));
++          setProfiles(mappedProfiles);
++          
++          // Set first profile as active if none selected
++          if (mappedProfiles.length > 0) {
++            setActiveProfile(prev => prev || mappedProfiles[0].id);
++          }
++          
++          // Load tags
++          try {
++            const tags = await getTags();
++            if (mounted) setUserTags(tags);
++          } catch (e) {
++            console.error('Error loading tags:', e);
++          }
++          
++          // Load team members for admin/owner
++          if (member.role === 'owner' || member.role === 'admin') {
++            try {
++              const members = await getTeamMembers();
++              if (mounted) setTeamMembers(members);
++            } catch (e) {
++              console.error('Error loading team members:', e);
++            }
++          }
+         }
+       } catch (err) {
+-        console.error('Error loading profiles:', err);
+-      }
+-      
+-      // Load tags with timeout
+-      try {
+-        const tags = await Promise.race([
+-          getTags(),
+-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+-        ]);
+-        if (mounted) setUserTags(tags);
+-      } catch (e) {
+-        console.error('Error loading tags:', e);
++        console.error('Error loading user data:', err);
++        if (mounted) setTeamMember(null);
+       }
+     };
+     
+@@ -471,8 +470,33 @@ export default function Home() {
+ 
+   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
+ 
+-  // TEMPORARILY DISABLED: Access restriction check
+-  // if (user && !teamMember) { ... }
++  // User is logged in but not a team member
++  if (user && !teamMember) {
++    return (
++      <div className="min-h-screen relative z-[1] flex flex-col">
++        <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
++        <header className="relative z-10 p-6 flex items-center justify-between">
++          <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Nuntius Niche Tracker</span>
++          <UserMenu user={user} />
++        </header>
++        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
++          <div className="text-center max-w-lg mx-auto">
++            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#e879f9]/20 flex items-center justify-center mx-auto mb-6 border border-[rgba(168,85,247,0.2)]">
++              <ShieldX className="w-10 h-10 text-[#c084fc]" />
++            </div>
++            <h1 className="text-3xl font-bold text-[#f8fafc] mb-4">Access Restricted</h1>
++            <p className="text-[#a1a1aa] mb-2">This tool is for team members only.</p>
++            <p className="text-[#71717a] text-sm mb-8">
++              Logged in as: <span className="text-[#c084fc]">{user.email}</span>
++            </p>
++            <p className="text-[#52525b] text-sm">
++              If you should have access, ask an admin to invite you.
++            </p>
++          </div>
++        </main>
++      </div>
++    );
++  }
+ 
+   if (!user) {
+     return (
+diff --git a/apps/web/src/components/PravusGenerator.tsx b/apps/web/src/components/PravusGenerator.tsx
+index 08460e5..8746ece 100644
+--- a/apps/web/src/components/PravusGenerator.tsx
++++ b/apps/web/src/components/PravusGenerator.tsx
+@@ -549,33 +549,6 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
+           </button>
+         </div>
+ 
+-        {/* Upload Setting - Always Visible */}
+-        <div className="mb-6 p-4 rounded-xl bg-[rgba(15,12,25,0.6)] border border-[rgba(168,85,247,0.2)]">
+-          <div className="flex items-center justify-between">
+-            <div className="flex items-center gap-3">
+-              {uploadToDrive ? <Upload className="w-5 h-5 text-[#fb923c]" /> : <Download className="w-5 h-5 text-[#71717a]" />}
+-              <div>
+-                <h3 className="text-sm font-semibold text-[#f8fafc]">Upload to Drive</h3>
+-                <p className="text-xs text-[#71717a]">
+-                  {uploadToDrive 
+-                    ? 'Videos will be uploaded to cloud storage' 
+-                    : 'Videos will only be saved locally'}
+-                </p>
+-              </div>
+-            </div>
+-            <button
+-              onClick={() => setUploadToDrive(!uploadToDrive)}
+-              className={`relative w-14 h-7 rounded-full transition-colors ${
+-                uploadToDrive ? 'bg-[#fb923c]' : 'bg-[#52525b]'
+-              }`}
+-            >
+-              <div className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-all ${
+-                uploadToDrive ? 'translate-x-7' : 'translate-x-0'
+-              }`} />
+-            </button>
+-          </div>
+-        </div>
+-
+         {error && (
+           <div className="mb-4 p-3 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] text-[#f87171] text-sm">
+             {error}
+@@ -822,6 +795,39 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
+           </div>
+         )}
+ 
++        {/* Upload Setting */}
++        <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
++          <h3 className="text-lg font-semibold text-[#f8fafc] mb-4">Upload Settings</h3>
++          
++          <div className="mb-4">
++            <button
++              onClick={() => setUploadToDrive(!uploadToDrive)}
++              className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-between ${
++                uploadToDrive
++                  ? 'bg-[rgba(234,88,12,0.15)] border-[rgba(234,88,12,0.4)] text-[#fb923c]'
++                  : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.15)] text-[#f8fafc] hover:border-[rgba(168,85,247,0.25)]'
++              }`}
++            >
++              <span className="flex items-center gap-2">
++                {uploadToDrive ? <Upload className="w-4 h-4" /> : <Download className="w-4 h-4" />}
++                {uploadToDrive ? 'Upload to Drive' : 'Local Only'}
++              </span>
++              <div className={`w-12 h-6 rounded-full transition-colors ${
++                uploadToDrive ? 'bg-[#fb923c]' : 'bg-[#52525b]'
++              }`}>
++                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
++                  uploadToDrive ? 'translate-x-6' : 'translate-x-0.5'
++                } mt-0.5`} />
++              </div>
++            </button>
++            <p className="text-xs text-[#71717a] mt-2">
++              {uploadToDrive 
++                ? 'Videos will be uploaded to cloud storage and available for download' 
++                : 'Videos will only be saved locally on your PC'}
++            </p>
++          </div>
++        </div>
++
+         {/* Voice Settings (separate from profile) */}
+         <div className="border-t border-[rgba(168,85,247,0.1)] pt-6 mt-6">
+           <h3 className="text-lg font-semibold text-[#f8fafc] mb-4">Voice Settings</h3>
+diff --git a/apps/web/src/lib/supabase.ts b/apps/web/src/lib/supabase.ts
+index 02ddfb9..3fce001 100644
+--- a/apps/web/src/lib/supabase.ts
++++ b/apps/web/src/lib/supabase.ts
+@@ -46,19 +46,14 @@ export interface Channel {
+ // ============================================
+ 
+ export async function checkTeamMembership(userId: string): Promise<TeamMember | null> {
+-  // TEMPORARY: Allow ALL logged-in users as owners
+-  // Just return a fake owner object - no database calls
+-  if (userId) {
+-    return {
+-      id: 'temp-' + userId,
+-      user_id: userId,
+-      email: 'owner@temp.com',
+-      role: 'owner',
+-      invited_by: null,
+-      created_at: new Date().toISOString()
+-    } as TeamMember;
+-  }
+-  return null;
++  const { data, error } = await supabase
++    .from('team_members')
++    .select('*')
++    .eq('user_id', userId)
++    .single();
++  
++  if (error) return null;
++  return data as TeamMember;
+ }
+ 
+ export async function getTeamMembers(): Promise<TeamMember[]> {
+diff --git a/apps/workers/pravus-generator/src/utils/__pycache__/ai33.cpython-311.pyc b/apps/workers/pravus-generator/src/utils/__pycache__/ai33.cpython-311.pyc
+index fb57b71..d7b1195 100644
+Binary files a/apps/workers/pravus-generator/src/utils/__pycache__/ai33.cpython-311.pyc and b/apps/workers/pravus-generator/src/utils/__pycache__/ai33.cpython-311.pyc differ
+diff --git a/apps/workers/pravus-generator/test.json b/apps/workers/pravus-generator/test.json
+index feac90e..f593b5f 100644
+--- a/apps/workers/pravus-generator/test.json
++++ b/apps/workers/pravus-generator/test.json
+@@ -1 +1 @@
+-{"segments": [{"lines": [{"words": [{"clips": [], "text": "What's", "semantic_tags": [{"name": "rainbow-word-0"}, {"name": "montserrat"}, {"name": "in-title"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-document"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 349, "height": 150}}, "time": {"start": 0.0, "end": 0.126}}], "structure_tags": [{"name": "first-line-in-document"}, {"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.0, "end": 0.126}}], "structure_tags": [{"name": "first-segment-in-document"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.0, "end": 0.126}}, {"lines": [{"words": [{"clips": [], "text": "your", "semantic_tags": [{"name": "rainbow-word-0"}, {"name": "montserrat"}, {"name": "in-title"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 255, "height": 174}}, "time": {"start": 0.16100000000000003, "end": 0.277}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.16100000000000003, "end": 0.277}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.16100000000000003, "end": 0.277}}, {"lines": [{"words": [{"clips": [], "text": "craziest", "semantic_tags": [{"name": "montserrat"}, {"name": "rainbow-word-1"}, {"name": "in-title"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 405, "height": 174}}, "time": {"start": 0.335, "end": 0.834}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.335, "end": 0.834}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.335, "end": 0.834}}, {"lines": [{"words": [{"clips": [], "text": "story?", "semantic_tags": [{"name": "rainbow-word-2"}, {"name": "montserrat"}, {"name": "in-title"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 332, "height": 174}}, "time": {"start": 0.869, "end": 1.3599999999999999}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.869, "end": 1.3599999999999999}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.869, "end": 1.3599999999999999}}, {"lines": [{"words": [{"clips": [], "text": "\u00cc", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-line"}, {"name": "first-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 67, "height": 174}}, "time": {"start": 1.3599999999999999, "end": 1.371}}, {"clips": [], "text": "don't", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 294, "height": 174}}, "time": {"start": 1.406, "end": 1.569}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.3599999999999999, "end": 1.569}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.3599999999999999, "end": 1.569}}, {"lines": [{"words": [{"clips": [], "text": "have", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-line"}, {"name": "first-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 266, "height": 174}}, "time": {"start": 1.6039999999999999, "end": 1.7309999999999999}}, {"clips": [], "text": "any", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 207, "height": 174}}, "time": {"start": 1.766, "end": 1.871}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.6039999999999999, "end": 1.871}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.6039999999999999, "end": 1.871}}, {"lines": [{"words": [{"clips": [], "text": "crazy", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 285, "height": 174}}, "time": {"start": 1.9289999999999998, "end": 2.207}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.9289999999999998, "end": 2.207}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.9289999999999998, "end": 2.207}}, {"lines": [{"words": [{"clips": [], "text": "stories", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 310, "height": 174}}, "time": {"start": 2.242, "end": 2.556}}], "structure_tags": [{"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.242, "end": 2.556}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.242, "end": 2.556}}, {"lines": [{"words": [{"clips": [], "text": "to", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-line"}, {"name": "first-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 132, "height": 174}}, "time": {"start": 2.61, "end": 2.659}}, {"clips": [], "text": "tell.", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-document"}, {"name": "last-word-in-line"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 182, "height": 174}}, "time": {"start": 2.706, "end": 2.987}}], "structure_tags": [{"name": "last-line-in-document"}, {"name": "first-line-in-segment"}, {"name": "last-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.61, "end": 2.987}}], "structure_tags": [{"name": "last-segment-in-document"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.61, "end": 2.987}}]}
+\ No newline at end of file
++{"segments": [{"lines": [{"words": [{"clips": [], "text": "What's", "semantic_tags": [{"name": "in-title"}, {"name": "montserrat"}, {"name": "rainbow-word-0"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "first-word-in-line"}, {"name": "first-word-in-document"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 349, "height": 150}}, "time": {"start": 0.0, "end": 0.1}}], "structure_tags": [{"name": "first-line-in-document"}, {"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.0, "end": 0.1}}], "structure_tags": [{"name": "first-segment-in-document"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.0, "end": 0.1}}, {"lines": [{"words": [{"clips": [], "text": "your", "semantic_tags": [{"name": "in-title"}, {"name": "montserrat"}, {"name": "rainbow-word-0"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 255, "height": 174}}, "time": {"start": 0.1, "end": 0.18}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.1, "end": 0.18}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.1, "end": 0.18}}, {"lines": [{"words": [{"clips": [], "text": "craziest", "semantic_tags": [{"name": "in-title"}, {"name": "montserrat"}, {"name": "rainbow-word-1"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 405, "height": 174}}, "time": {"start": 0.18, "end": 0.6}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.18, "end": 0.6}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.18, "end": 0.6}}, {"lines": [{"words": [{"clips": [], "text": "story?", "semantic_tags": [{"name": "in-title"}, {"name": "montserrat"}, {"name": "rainbow-word-2"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 332, "height": 174}}, "time": {"start": 0.6, "end": 1.2}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.6, "end": 1.2}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 0.6, "end": 1.2}}, {"lines": [{"words": [{"clips": [], "text": "I", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 67, "height": 174}}, "time": {"start": 1.2, "end": 1.4}}, {"clips": [], "text": "don't", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 294, "height": 174}}, "time": {"start": 1.4, "end": 1.58}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.2, "end": 1.58}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.2, "end": 1.58}}, {"lines": [{"words": [{"clips": [], "text": "have", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 266, "height": 174}}, "time": {"start": 1.58, "end": 1.64}}, {"clips": [], "text": "any", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 207, "height": 174}}, "time": {"start": 1.64, "end": 1.84}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.58, "end": 1.84}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.58, "end": 1.84}}, {"lines": [{"words": [{"clips": [], "text": "crazy", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 285, "height": 174}}, "time": {"start": 1.84, "end": 2.06}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.84, "end": 2.06}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 1.84, "end": 2.06}}, {"lines": [{"words": [{"clips": [], "text": "stories", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "first-word-in-segment"}, {"name": "last-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 310, "height": 174}}, "time": {"start": 2.06, "end": 2.38}}], "structure_tags": [{"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.06, "end": 2.38}}], "structure_tags": [], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.06, "end": 2.38}}, {"lines": [{"words": [{"clips": [], "text": "to", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "first-word-in-segment"}, {"name": "first-word-in-line"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 132, "height": 174}}, "time": {"start": 2.38, "end": 2.58}}, {"clips": [], "text": "tell.", "semantic_tags": [{"name": "montserrat"}], "structure_tags": [{"name": "last-word-in-line"}, {"name": "last-word-in-document"}, {"name": "last-word-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 182, "height": 174}}, "time": {"start": 2.58, "end": 2.76}}], "structure_tags": [{"name": "last-line-in-document"}, {"name": "last-line-in-segment"}, {"name": "first-line-in-segment"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.38, "end": 2.76}}], "structure_tags": [{"name": "last-segment-in-document"}], "max_layout": {"position": {"x": 0, "y": 0}, "size": {"width": 0, "height": 0}}, "time": {"start": 2.38, "end": 2.76}}]}
+\ No newline at end of file
+diff --git a/apps/workers/shared-assets.md b/apps/workers/shared-assets.md
+index 2ad7431..93de059 100644
+--- a/apps/workers/shared-assets.md
++++ b/apps/workers/shared-assets.md
+@@ -41,3 +41,4 @@ C:/Nuntius/assets/
+ Both workers will read from this shared location, so you only need to manage one set of assets.
+ 
+ 
++
+diff --git a/package.json b/package.json
+index f7cc424..53ddc64 100644
+--- a/package.json
++++ b/package.json
+@@ -14,3 +14,4 @@
+ }
+ 
+ 
++

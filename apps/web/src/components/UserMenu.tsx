@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { User, LogOut, ChevronDown } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, clearTeamMemberCache } from '@/lib/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface UserMenuProps {
@@ -25,6 +25,7 @@ export default function UserMenu({ user }: UserMenuProps) {
   }, []);
 
   const handleSignOut = async () => {
+    clearTeamMemberCache(); // Clear cached team membership
     await supabase.auth.signOut();
     setIsOpen(false);
   };

@@ -175,3 +175,42 @@ CREATE INDEX IF NOT EXISTS worker_heartbeats_last_heartbeat_idx ON worker_heartb
 
 -- Done! Your queries should now be much faster.
 
+-- ============================================
+-- 9. REDDIT PROFILES TABLE (for Pravus Generator)
+-- ============================================
+CREATE TABLE IF NOT EXISTS reddit_profiles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  channel_name text NOT NULL,
+  profile_pic text, -- Base64 or URL
+  font text DEFAULT 'montserrat',
+  video_length integer DEFAULT 179,
+  music text DEFAULT 'none',
+  background_video text DEFAULT '',
+  selected_badges text[] DEFAULT '{}',
+  highlight_color text DEFAULT '#ffff00',
+  animations_enabled boolean DEFAULT true,
+  badge_style text DEFAULT 'blue',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS
+ALTER TABLE reddit_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Users can only access their own profiles
+CREATE POLICY "reddit_profiles_select" ON reddit_profiles FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "reddit_profiles_insert" ON reddit_profiles FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "reddit_profiles_update" ON reddit_profiles FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "reddit_profiles_delete" ON reddit_profiles FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS reddit_profiles_user_id_idx ON reddit_profiles(user_id);
+

@@ -1,5 +1,0 @@
-===TITLE===
-Test
-
-===SCRIPT===
-Test

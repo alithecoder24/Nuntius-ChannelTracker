@@ -6,6 +6,17 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ============================================
+// SESSION CACHE - Reduces repeated DB calls
+// ============================================
+const sessionCache = {
+  teamMember: null as TeamMember | null | undefined,
+  teamMemberUserId: null as string | null,
+  teamMemberExpiry: 0,
+};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// ============================================
 // TYPES
 // ============================================
 
@@ -46,19 +57,37 @@ export interface Channel {
 // ============================================
 
 export async function checkTeamMembership(userId: string): Promise<TeamMember | null> {
-  // TEMPORARY: Allow ALL logged-in users as owners
-  // Just return a fake owner object - no database calls
-  if (userId) {
-    return {
-      id: 'temp-' + userId,
-      user_id: userId,
-      email: 'owner@temp.com',
-      role: 'owner',
-      invited_by: null,
-      created_at: new Date().toISOString()
-    } as TeamMember;
+  // Check cache first to reduce DB calls
+  const now = Date.now();
+  if (
+    sessionCache.teamMemberUserId === userId &&
+    sessionCache.teamMemberExpiry > now &&
+    sessionCache.teamMember !== undefined
+  ) {
+    return sessionCache.teamMember;
   }
-  return null;
+  
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  
+  const member = error ? null : (data as TeamMember);
+  
+  // Cache the result
+  sessionCache.teamMember = member;
+  sessionCache.teamMemberUserId = userId;
+  sessionCache.teamMemberExpiry = now + CACHE_DURATION;
+  
+  return member;
+}
+
+// Clear cache on logout or user change
+export function clearTeamMemberCache() {
+  sessionCache.teamMember = undefined;
+  sessionCache.teamMemberUserId = null;
+  sessionCache.teamMemberExpiry = 0;
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
@@ -396,4 +425,105 @@ export async function subscribeToWorkerStatus(workerType: string, callback: (hea
       }
     )
     .subscribe();
+}
+
+// ============================================
+// REDDIT PROFILE FUNCTIONS (for Pravus Generator)
+// ============================================
+
+export interface RedditProfile {
+  id: string;
+  user_id: string;
+  channel_name: string;
+  profile_pic: string | null;
+  font: string;
+  video_length: number;
+  music: string;
+  background_video: string;
+  selected_badges: string[];
+  highlight_color: string;
+  animations_enabled: boolean;
+  badge_style: 'blue' | 'gold';
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getRedditProfiles(userId: string): Promise<RedditProfile[]> {
+  const { data, error } = await supabase
+    .from('reddit_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching reddit profiles:', error);
+    return [];
+  }
+  return data as RedditProfile[];
+}
+
+export async function createRedditProfile(userId: string, profile: {
+  channel_name: string;
+  profile_pic?: string | null;
+  font?: string;
+  video_length?: number;
+  music?: string;
+  background_video?: string;
+  selected_badges?: string[];
+  highlight_color?: string;
+  animations_enabled?: boolean;
+  badge_style?: 'blue' | 'gold';
+}): Promise<RedditProfile> {
+  const { data, error } = await supabase
+    .from('reddit_profiles')
+    .insert({
+      user_id: userId,
+      channel_name: profile.channel_name,
+      profile_pic: profile.profile_pic || null,
+      font: profile.font || 'montserrat',
+      video_length: profile.video_length || 179,
+      music: profile.music || 'none',
+      background_video: profile.background_video || '',
+      selected_badges: profile.selected_badges || [],
+      highlight_color: profile.highlight_color || '#ffff00',
+      animations_enabled: profile.animations_enabled ?? true,
+      badge_style: profile.badge_style || 'blue',
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as RedditProfile;
+}
+
+export async function updateRedditProfile(profileId: string, updates: {
+  channel_name?: string;
+  profile_pic?: string | null;
+  font?: string;
+  video_length?: number;
+  music?: string;
+  background_video?: string;
+  selected_badges?: string[];
+  highlight_color?: string;
+  animations_enabled?: boolean;
+  badge_style?: 'blue' | 'gold';
+}): Promise<RedditProfile> {
+  const { data, error } = await supabase
+    .from('reddit_profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', profileId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as RedditProfile;
+}
+
+export async function deleteRedditProfile(profileId: string): Promise<void> {
+  const { error } = await supabase
+    .from('reddit_profiles')
+    .delete()
+    .eq('id', profileId);
+  
+  if (error) throw error;
 }

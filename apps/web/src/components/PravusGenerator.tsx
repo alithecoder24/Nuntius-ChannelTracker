@@ -8,23 +8,12 @@ import {
 } from 'lucide-react';
 import { 
   createVideoJob, getVideoJobs, deleteVideoJob, subscribeToVideoJobs, 
-  getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat 
+  getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat,
+  getRedditProfiles, createRedditProfile, updateRedditProfile, deleteRedditProfile, type RedditProfile
 } from '@/lib/supabase';
 
-// Types
-interface Profile {
-  id: string;
-  channel_name: string;
-  profile_pic: string | null;
-  font: string;
-  video_length: number;
-  music: string;
-  background_video: string;
-  selected_badges: string[];
-  highlight_color: string;
-  animations_enabled: boolean;
-  badge_style: 'blue' | 'gold';
-}
+// Types - Use RedditProfile from supabase
+type Profile = RedditProfile;
 
 interface PravusGeneratorProps {
   userId: string;
@@ -311,119 +300,26 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [voiceProvider, subProvider]);
 
-  // Storage key
-  const STORAGE_KEY = 'pravus_reddit_profiles';
+  // Loading state for profiles
+  const [profilesLoading, setProfilesLoading] = useState(true);
   
-  // Read profiles from ALL possible localStorage keys (handles migration)
-  const getStoredProfiles = (): Profile[] => {
-    // Guard for SSR - localStorage only exists in browser
-    if (typeof window === 'undefined') return [];
-    
-    const allProfiles = new Map<string, Profile>();
-    
-    // Check all possible keys where profiles might be stored
-    const keysToCheck = [
-      STORAGE_KEY,
-      `pravus_profiles_${userId}`,
-      'pravus_profiles',
-      'pravus-profiles',
-      'profiles',
-    ];
-    
-    // Also check any key containing 'pravus' or 'profile'
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('pravus') || key.includes('profile'))) {
-          if (!keysToCheck.includes(key)) keysToCheck.push(key);
-        }
-      }
-    } catch {}
-    
-    for (const key of keysToCheck) {
-      try {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            for (const p of parsed) {
-              if (p?.id && p?.channel_name && !allProfiles.has(p.id)) {
-                allProfiles.set(p.id, p);
-              }
-            }
-          }
-        }
-      } catch {}
-    }
-    
-    return Array.from(allProfiles.values());
-  };
-  
-  // Load profiles on mount
+  // Load profiles from Supabase on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const loaded = getStoredProfiles();
-    console.log('[Profiles] Loaded from localStorage:', loaded.map(p => p.channel_name));
-    
-    if (loaded.length > 0) {
-      setProfiles(loaded);
-      
-      // Clean up: remove ALL old keys to free space, keep only STORAGE_KEY
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key !== STORAGE_KEY && (key.includes('pravus') || key.includes('profile'))) {
-          keysToRemove.push(key);
-        }
+    const loadProfiles = async () => {
+      try {
+        setProfilesLoading(true);
+        const dbProfiles = await getRedditProfiles(userId);
+        console.log('[Profiles] Loaded from Supabase:', dbProfiles.map(p => p.channel_name));
+        setProfiles(dbProfiles);
+      } catch (e) {
+        console.error('[Profiles] Error loading:', e);
+      } finally {
+        setProfilesLoading(false);
       }
-      keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch {} });
-      
-      // Save consolidated profiles to main key only
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded)); } catch {}
-    }
-  }, []);
-
-  // Save profiles to localStorage
-  const saveProfiles = (newProfiles: Profile[]) => {
-    if (typeof window === 'undefined') return;
+    };
     
-    console.log('[Profiles] Saving:', newProfiles.map(p => p.channel_name));
-    
-    // Update React state
-    setProfiles(newProfiles);
-    
-    // Save to localStorage (only to STORAGE_KEY to save space)
-    try {
-      const json = JSON.stringify(newProfiles);
-      localStorage.setItem(STORAGE_KEY, json);
-      console.log('[Profiles] ✓ Saved successfully, count:', newProfiles.length);
-    } catch (e: unknown) {
-      console.error('[Profiles] Save error:', e);
-      // If quota exceeded, try to clear old keys and retry
-      if (e instanceof Error && e.name === 'QuotaExceededError') {
-        console.log('[Profiles] Clearing old storage keys...');
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key !== STORAGE_KEY && (key.includes('pravus') || key.includes('profile'))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch {} });
-        
-        // Retry save
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfiles));
-          console.log('[Profiles] ✓ Saved after cleanup');
-        } catch (e2) {
-          alert('Storage is full! Please clear your browser data or remove some profiles.');
-        }
-      } else {
-        alert('Failed to save profile: ' + e);
-      }
-    }
-  };
+    loadProfiles();
+  }, [userId]);
 
   // Load jobs and subscribe to updates
   useEffect(() => {
@@ -550,73 +446,79 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   };
 
   // Create new profile
-  const handleCreateProfile = () => {
+  const handleCreateProfile = async () => {
     if (!channelName.trim()) {
       setError('Channel name is required');
       return;
     }
     
-    const newProfile: Profile = {
-      id: `profile_${Date.now()}`,
-      channel_name: channelName,
-      profile_pic: profilePic,
-      font,
-      video_length: videoLength,
-      music,
-      background_video: backgroundVideo,
-      selected_badges: selectedBadges,
-      highlight_color: highlightColor,
-      animations_enabled: animationsEnabled,
-      badge_style: badgeStyle,
-    };
-    
-    // Read from localStorage (source of truth) to avoid stale React state
-    const currentProfiles = getStoredProfiles();
-    const newProfiles = [...currentProfiles, newProfile];
-    saveProfiles(newProfiles);
-    setSelectedProfileId(newProfile.id);
-    setIsCreatingProfile(false);
-    setError(null);
+    try {
+      const newProfile = await createRedditProfile(userId, {
+        channel_name: channelName,
+        profile_pic: profilePic,
+        font,
+        video_length: videoLength,
+        music,
+        background_video: backgroundVideo,
+        selected_badges: selectedBadges,
+        highlight_color: highlightColor,
+        animations_enabled: animationsEnabled,
+        badge_style: badgeStyle,
+      });
+      
+      console.log('[Profiles] Created:', newProfile.channel_name);
+      setProfiles(prev => [...prev, newProfile]);
+      setSelectedProfileId(newProfile.id);
+      setIsCreatingProfile(false);
+      setError(null);
+    } catch (e) {
+      console.error('[Profiles] Create error:', e);
+      setError('Failed to create profile. Please try again.');
+    }
   };
 
   // Update existing profile
-  const handleUpdateProfile = () => {
+  const handleUpdateProfile = async () => {
     if (!selectedProfileId || !channelName.trim()) return;
     
-    // Read from localStorage (source of truth) to avoid stale React state
-    const currentProfiles = getStoredProfiles();
-    const updatedProfiles = currentProfiles.map(p => 
-      p.id === selectedProfileId 
-        ? {
-            ...p,
-            channel_name: channelName,
-            profile_pic: profilePic,
-            font,
-            video_length: videoLength,
-            music,
-            background_video: backgroundVideo,
-            selected_badges: selectedBadges,
-            highlight_color: highlightColor,
-            animations_enabled: animationsEnabled,
-            badge_style: badgeStyle,
-          }
-        : p
-    );
-    
-    saveProfiles(updatedProfiles);
-    setIsEditingProfile(false);
+    try {
+      const updated = await updateRedditProfile(selectedProfileId, {
+        channel_name: channelName,
+        profile_pic: profilePic,
+        font,
+        video_length: videoLength,
+        music,
+        background_video: backgroundVideo,
+        selected_badges: selectedBadges,
+        highlight_color: highlightColor,
+        animations_enabled: animationsEnabled,
+        badge_style: badgeStyle,
+      });
+      
+      console.log('[Profiles] Updated:', updated.channel_name);
+      setProfiles(prev => prev.map(p => p.id === selectedProfileId ? updated : p));
+      setIsEditingProfile(false);
+    } catch (e) {
+      console.error('[Profiles] Update error:', e);
+      setError('Failed to update profile. Please try again.');
+    }
   };
 
   // Delete profile
-  const handleDeleteProfile = (profileId: string) => {
+  const handleDeleteProfile = async (profileId: string) => {
     if (!confirm('Delete this profile?')) return;
-    // Read from localStorage (source of truth) to avoid stale React state
-    const currentProfiles = getStoredProfiles();
-    const newProfiles = currentProfiles.filter(p => p.id !== profileId);
-    saveProfiles(newProfiles);
-    if (selectedProfileId === profileId) {
-      setSelectedProfileId('');
-      setChannelName('');
+    
+    try {
+      await deleteRedditProfile(profileId);
+      console.log('[Profiles] Deleted:', profileId);
+      setProfiles(prev => prev.filter(p => p.id !== profileId));
+      if (selectedProfileId === profileId) {
+        setSelectedProfileId('');
+        setChannelName('');
+      }
+    } catch (e) {
+      console.error('[Profiles] Delete error:', e);
+      setError('Failed to delete profile. Please try again.');
     }
   };
 

@@ -74,24 +74,11 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     
-    // Failsafe: Force loading to complete after 3 seconds
-    const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('Auth timeout - forcing load complete');
-        setLoading(false);
-      }
-    }, 3000);
-    
     const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('Auth error:', err);
-        if (mounted) setLoading(false);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
     };
     
@@ -105,12 +92,12 @@ export default function Home() {
     
     return () => {
       mounted = false;
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  // When user changes, load data - SIMPLIFIED to fix infinite loading
+  // When user changes, check access and load data
+  // OPTIMIZED: Reduced queries, defer non-critical data, batch where possible
   useEffect(() => {
     let mounted = true;
     
@@ -125,22 +112,23 @@ export default function Home() {
         return;
       }
       
-      // Set fake team member immediately - no DB calls
-      setTeamMember({
-        id: 'temp-' + user.id,
-        user_id: user.id,
-        email: user.email || '',
-        role: 'owner',
-        invited_by: null,
-        created_at: new Date().toISOString()
-      } as TeamMember);
-      
-      // Load profiles with timeout
       try {
-        const profilesData = await Promise.race([
-          getProfiles(user.id),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-        ]);
+        // CRITICAL PATH: Only check team membership first (1 query)
+        const member = await checkTeamMembership(user.id);
+        if (!mounted) return;
+        
+        setTeamMember(member);
+        
+        if (!member) {
+          // Not a team member - link in background, don't block
+          if (user.email) {
+            linkUserToTeamMember(user.id, user.email).catch(() => {});
+          }
+          return;
+        }
+        
+        // User is a team member - load profiles (1 query)
+        const profilesData = await getProfiles(user.id);
         if (!mounted) return;
         
         const mappedProfiles = profilesData.map(p => ({
@@ -151,22 +139,32 @@ export default function Home() {
         }));
         setProfiles(mappedProfiles);
         
+        // Set first profile as active if none selected
         if (mappedProfiles.length > 0) {
           setActiveProfile(prev => prev || mappedProfiles[0].id);
         }
+        
+        // DEFERRED: Load tags and team members in background (non-blocking)
+        // These are not needed for initial render
+        setTimeout(() => {
+          if (!mounted) return;
+          
+          // Load tags in background
+          getTags().then(tags => {
+            if (mounted) setUserTags(tags);
+          }).catch(e => console.error('Error loading tags:', e));
+          
+          // Load team members for admin/owner in background
+          if (member.role === 'owner' || member.role === 'admin') {
+            getTeamMembers().then(members => {
+              if (mounted) setTeamMembers(members);
+            }).catch(e => console.error('Error loading team members:', e));
+          }
+        }, 100); // Small delay to let UI render first
+        
       } catch (err) {
-        console.error('Error loading profiles:', err);
-      }
-      
-      // Load tags with timeout
-      try {
-        const tags = await Promise.race([
-          getTags(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-        ]);
-        if (mounted) setUserTags(tags);
-      } catch (e) {
-        console.error('Error loading tags:', e);
+        console.error('Error loading user data:', err);
+        if (mounted) setTeamMember(null);
       }
     };
     
@@ -205,17 +203,22 @@ export default function Home() {
         }));
 
         // Compute views gained from snapshots for different time windows
+        // OPTIMIZED: Only fetch last 30 days of snapshots (matches cleanup policy)
         const channelIds = baseChannels.map(c => c.channel_id);
         let views1dMap: Record<string, number> = {};
         let views28dMap: Record<string, number> = {};
         let views48hMap: Record<string, number> = {};
         
         if (channelIds.length > 0) {
+          // Only fetch snapshots from last 30 days to reduce IO
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          
           const { data: snaps, error: snapError } = await supabase
             .from('channel_snapshots')
             .select('channel_id, view_count, created_at')
             .in('channel_id', channelIds)
-            .order('created_at', { ascending: true }); // Oldest first for proper diff calculation
+            .gte('created_at', thirtyDaysAgo)
+            .order('created_at', { ascending: true });
 
           if (!snapError && snaps) {
             // Group snapshots by channel
@@ -471,8 +474,33 @@ export default function Home() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#a855f7] animate-spin" /></div>;
 
-  // TEMPORARILY DISABLED: Access restriction check
-  // if (user && !teamMember) { ... }
+  // User is logged in but not a team member
+  if (user && !teamMember) {
+    return (
+      <div className="min-h-screen relative z-[1] flex flex-col">
+        <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
+        <header className="relative z-10 p-6 flex items-center justify-between">
+          <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-[#c084fc] to-[#e879f9] bg-clip-text text-transparent">Nuntius Niche Tracker</span>
+          <UserMenu user={user} />
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+          <div className="text-center max-w-lg mx-auto">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#e879f9]/20 flex items-center justify-center mx-auto mb-6 border border-[rgba(168,85,247,0.2)]">
+              <ShieldX className="w-10 h-10 text-[#c084fc]" />
+            </div>
+            <h1 className="text-3xl font-bold text-[#f8fafc] mb-4">Access Restricted</h1>
+            <p className="text-[#a1a1aa] mb-2">This tool is for team members only.</p>
+            <p className="text-[#71717a] text-sm mb-8">
+              Logged in as: <span className="text-[#c084fc]">{user.email}</span>
+            </p>
+            <p className="text-[#52525b] text-sm">
+              If you should have access, ask an admin to invite you.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
