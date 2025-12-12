@@ -242,9 +242,10 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   
   // Background videos (ClipMix)
   // Shared ClipMix library (C:\Nuntius-Clip-Mix\)
-  // Add more entries here when you add new clips to the folder
+  // These are loaded from the worker's config.json files in each Mix folder
   const [clipMixes, setClipMixes] = useState<{id: string; name: string; emoji: string}[]>([
     { id: 'Mix_1', name: 'Cookim', emoji: '🥐' },
+    { id: 'Mix_2', name: 'Satisfying', emoji: '😌' },
   ]);
 
   // Get available voices based on provider selection
