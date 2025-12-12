@@ -294,28 +294,35 @@ def get_pending_jobs():
         print(f"Error fetching jobs: {e}")
         return []
 
-def update_job_status(job_id: str, status: str, progress: int = 0, error_message: str = None, output_url: str = None):
-    """Update job status in Supabase"""
+def update_job_status(job_id: str, status: str, progress: int = 0, status_message: str = None, error_message: str = None, output_url: str = None):
+    """Update job status in Supabase with detailed status message"""
     try:
         update_data = {
             'status': status,
             'progress': progress,
         }
         
+        # Add status message for real-time UI updates
+        if status_message:
+            update_data['status_message'] = status_message
+        
         if status == 'processing':
             update_data['started_at'] = datetime.utcnow().isoformat()
         
         if status == 'completed':
             update_data['completed_at'] = datetime.utcnow().isoformat()
+            update_data['status_message'] = 'Completed!'
             if output_url:
                 update_data['output_url'] = output_url
         
         if status == 'failed' and error_message:
             update_data['error_message'] = error_message
+            update_data['status_message'] = f'Failed: {error_message[:100]}'
             update_data['completed_at'] = datetime.utcnow().isoformat()
         
         supabase.table('video_jobs').update(update_data).eq('id', job_id).execute()
-        print(f"  Job {job_id[:8]}... status: {status} ({progress}%)")
+        msg = status_message or status
+        print(f"  [{progress}%] {msg}")
     except Exception as e:
         print(f"Error updating job: {e}")
 
@@ -386,14 +393,17 @@ def process_job(job: dict):
     job_id = job['id']
     input_data = job['input_data']
     
+    script_count = len(input_data.get('scripts', []))
+    channel_name = input_data.get('channel_name', 'Unknown')
+    
     print(f"\n{'='*50}")
     print(f"Processing job: {job_id[:8]}...")
-    print(f"Channel: {input_data.get('channel_name', 'Unknown')}")
-    print(f"Scripts: {len(input_data.get('scripts', []))} file(s)")
+    print(f"Channel: {channel_name}")
+    print(f"Scripts: {script_count} file(s)")
     print(f"{'='*50}")
     
     send_heartbeat('busy')
-    update_job_status(job_id, 'processing', 5)
+    update_job_status(job_id, 'processing', 5, f"Initializing job for {channel_name}...")
     
     # Create temp profile
     profile_id = None
@@ -426,7 +436,7 @@ def process_job(job: dict):
         # Create temp profile from input_data
         profile_id = create_temp_profile(job_id, input_data)
         
-        update_job_status(job_id, 'processing', 10)
+        update_job_status(job_id, 'processing', 10, "Configuring voice settings...")
         
         # Extract settings
         channel_name = input_data.get('channel_name', 'Channel')
@@ -469,7 +479,7 @@ def process_job(job: dict):
             })
         
         print(f"  Saved {len(temp_script_files)} script file(s)")
-        update_job_status(job_id, 'processing', 20)
+        update_job_status(job_id, 'processing', 15, f"Processing {len(temp_script_files)} script(s)...")
         
         # Initialize task in mock task manager
         task_manager.create_task(job_id, {
@@ -480,12 +490,19 @@ def process_job(job: dict):
         # Import and run workflow
         from src.utils.workflow import WorkflowManager
         
+        # Create a callback to update job status in real-time
+        def status_callback(progress: int, message: str):
+            # Map workflow progress (0-100) to our range (25-85)
+            mapped_progress = 25 + int(progress * 0.6)
+            update_job_status(job_id, 'processing', mapped_progress, message)
+        
         workflow_manager = WorkflowManager(
             task_id=job_id,
-            base_dir=BASE_DIR
+            base_dir=BASE_DIR,
+            status_callback=status_callback
         )
         
-        update_job_status(job_id, 'processing', 30)
+        update_job_status(job_id, 'processing', 25, "Generating audio with TTS...")
         
         # Process the task
         print(f"  Starting workflow processing...")
@@ -498,7 +515,7 @@ def process_job(job: dict):
             uploaded_files_info=uploaded_files_info
         )
         
-        update_job_status(job_id, 'processing', 90)
+        update_job_status(job_id, 'processing', 85, "Finalizing video...")
         
         # Find output video
         if result and result.get('success'):
@@ -513,7 +530,7 @@ def process_job(job: dict):
                 video_path = os.path.join(video_dir, video_files[0])
                 print(f"  Video generated: {video_path}")
                 
-                update_job_status(job_id, 'processing', 95)
+                update_job_status(job_id, 'processing', 90, "Video rendered! Uploading...")
                 
                 # Check if upload to drive is enabled (default to True for backward compatibility)
                 upload_to_drive = input_data.get('upload_to_drive', True)

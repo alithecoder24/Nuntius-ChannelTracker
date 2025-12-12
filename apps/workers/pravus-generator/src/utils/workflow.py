@@ -101,19 +101,34 @@ class WorkflowManager:
     Acts as a facade for the various components of the system.
     """
     
-    def __init__(self, task_id: Optional[str] = None, base_dir: Optional[str] = None):
-        """Initialize the workflow manager."""
+    def __init__(self, task_id: Optional[str] = None, base_dir: Optional[str] = None, 
+                 status_callback: Optional[callable] = None):
+        """Initialize the workflow manager.
+        
+        Args:
+            task_id: Unique task identifier
+            base_dir: Base directory for the workflow
+            status_callback: Optional callback function(progress: int, message: str) for real-time status updates
+        """
         self.task_id = task_id
         self.base_dir = base_dir or os.getcwd()
         self.status_updater = TaskStatusUpdater(task_id)
+        self.status_callback = status_callback
         
         # Initialize component processors
         self.audio_pipeline = AudioPipeline(task_id)
         self.video_processor = VideoProcessor(task_id)
     
     def update_status(self, status=None, stage=None, message=None, progress=None):
-        """Update task status using the task_updater."""
+        """Update task status using the task_updater and optional callback."""
         self.status_updater.update(status=status, stage=stage, message=message, progress=progress)
+        
+        # Call the external callback if provided (for real-time UI updates)
+        if self.status_callback and progress is not None and message:
+            try:
+                self.status_callback(progress, message)
+            except Exception as e:
+                custom_print(FILE, f"Status callback error: {e}", error=True)
     
     def generate_images(
         self,

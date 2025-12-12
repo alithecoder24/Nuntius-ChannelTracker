@@ -1,0 +1,17 @@
+# Output folders (generated videos, audio, images)
+output/
+Assets/Profiles/job_*/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+venv/
+.venv/
+
+# Logs
+*.log
+

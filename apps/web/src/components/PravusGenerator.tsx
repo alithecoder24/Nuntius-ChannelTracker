@@ -1210,12 +1210,23 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                               <span>{formatTime(job.created_at)}</span>
                             </div>
                             {/* Progress bar for processing jobs */}
-                            {job.status === 'processing' && job.progress !== undefined && (
-                              <div className="mt-2 h-1.5 bg-[rgba(168,85,247,0.1)] rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-[#fb923c] to-[#fbbf24] rounded-full transition-all duration-500"
-                                  style={{ width: `${job.progress}%` }}
-                                />
+                            {job.status === 'processing' && (
+                              <div className="mt-2">
+                                <div className="h-1.5 bg-[rgba(168,85,247,0.1)] rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-[#fb923c] to-[#fbbf24] rounded-full transition-all duration-500"
+                                    style={{ width: `${job.progress || 0}%` }}
+                                  />
+                                </div>
+                                {/* Status message */}
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="text-xs text-[#a1a1aa] truncate">
+                                    {job.status_message || 'Starting...'}
+                                  </span>
+                                  <span className="text-xs text-[#fb923c] font-medium ml-2">
+                                    {job.progress || 0}%
+                                  </span>
+                                </div>
                               </div>
                             )}
                           </div>
