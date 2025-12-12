@@ -311,47 +311,83 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     }
   }, [voiceProvider, subProvider]);
 
-  // Storage key - simple and consistent
+  // Storage key
   const STORAGE_KEY = 'pravus_reddit_profiles';
   
-  // Load profiles from localStorage on mount
+  // Read profiles from ALL possible localStorage keys (handles migration)
+  const getStoredProfiles = (): Profile[] => {
+    const allProfiles = new Map<string, Profile>();
+    
+    // Check all possible keys where profiles might be stored
+    const keysToCheck = [
+      STORAGE_KEY,
+      `pravus_profiles_${userId}`,
+      'pravus_profiles',
+      'pravus-profiles',
+      'profiles',
+    ];
+    
+    // Also check any key containing 'pravus' or 'profile'
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('pravus') || key.includes('profile'))) {
+        if (!keysToCheck.includes(key)) keysToCheck.push(key);
+      }
+    }
+    
+    for (const key of keysToCheck) {
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            for (const p of parsed) {
+              if (p?.id && p?.channel_name && !allProfiles.has(p.id)) {
+                allProfiles.set(p.id, p);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+    
+    return Array.from(allProfiles.values());
+  };
+  
+  // Load profiles on mount
   useEffect(() => {
-    // Use getStoredProfiles which reads from localStorage (source of truth)
-    const storedProfiles = getStoredProfiles();
-    if (storedProfiles.length > 0) {
-      console.log('[Profiles] ✓ Loaded:', storedProfiles.map(p => p.channel_name));
-      setProfiles(storedProfiles);
+    const loaded = getStoredProfiles();
+    console.log('[Profiles] Loaded from localStorage:', loaded.map(p => p.channel_name));
+    if (loaded.length > 0) {
+      setProfiles(loaded);
+      // Consolidate to main key
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
     }
   }, []);
 
-  // Read current profiles from localStorage (source of truth)
-  const getStoredProfiles = (): Profile[] => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  };
-
   // Save profiles to localStorage
   const saveProfiles = (newProfiles: Profile[]) => {
-    console.log('[Profiles] === SAVING ===', newProfiles.map(p => p.channel_name));
+    console.log('[Profiles] Saving:', newProfiles.map(p => p.channel_name));
     
-    // Update state
+    // Update React state
     setProfiles(newProfiles);
     
-    // Save to localStorage (to ALL keys for redundancy)
+    // Save to localStorage
     try {
       const json = JSON.stringify(newProfiles);
       localStorage.setItem(STORAGE_KEY, json);
-      localStorage.setItem(`pravus_profiles_${userId}`, json);
-      localStorage.setItem('pravus_profiles', json);
-      console.log('[Profiles] ✓ Saved to all keys');
+      
+      // Verify immediately
+      const verify = localStorage.getItem(STORAGE_KEY);
+      if (verify !== json) {
+        console.error('[Profiles] SAVE FAILED! localStorage rejected the write');
+        alert('Failed to save profile! Your browser may be blocking storage.');
+      } else {
+        console.log('[Profiles] ✓ Saved successfully, count:', newProfiles.length);
+      }
     } catch (e) {
-      console.error('[Profiles] Error saving:', e);
+      console.error('[Profiles] Save error:', e);
+      alert('Failed to save profile: ' + e);
     }
   };
 
