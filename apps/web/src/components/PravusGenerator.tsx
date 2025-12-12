@@ -316,6 +316,9 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   
   // Read profiles from ALL possible localStorage keys (handles migration)
   const getStoredProfiles = (): Profile[] => {
+    // Guard for SSR - localStorage only exists in browser
+    if (typeof window === 'undefined') return [];
+    
     const allProfiles = new Map<string, Profile>();
     
     // Check all possible keys where profiles might be stored
@@ -328,12 +331,14 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     ];
     
     // Also check any key containing 'pravus' or 'profile'
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('pravus') || key.includes('profile'))) {
-        if (!keysToCheck.includes(key)) keysToCheck.push(key);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('pravus') || key.includes('profile'))) {
+          if (!keysToCheck.includes(key)) keysToCheck.push(key);
+        }
       }
-    }
+    } catch {}
     
     for (const key of keysToCheck) {
       try {
@@ -361,12 +366,14 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     if (loaded.length > 0) {
       setProfiles(loaded);
       // Consolidate to main key
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded)); } catch {}
     }
   }, []);
 
   // Save profiles to localStorage
   const saveProfiles = (newProfiles: Profile[]) => {
+    if (typeof window === 'undefined') return;
+    
     console.log('[Profiles] Saving:', newProfiles.map(p => p.channel_name));
     
     // Update React state
