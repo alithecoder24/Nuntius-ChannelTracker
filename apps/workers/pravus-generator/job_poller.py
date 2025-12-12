@@ -226,7 +226,7 @@ def send_heartbeat(status: str = 'online'):
         supabase.table('worker_heartbeats').upsert({
             'worker_type': 'pravus-generator',
             'status': status,
-            'last_heartbeat': datetime.utcnow().isoformat()
+            'last_heartbeat': datetime.utcnow().isoformat() + 'Z'  # Add Z to mark as UTC for JavaScript
         }, on_conflict='worker_type').execute()
     except Exception as e:
         print(f"Error sending heartbeat: {e}")
