@@ -294,6 +294,17 @@ def get_pending_jobs():
         print(f"Error fetching jobs: {e}")
         return []
 
+def is_job_cancelled(job_id: str) -> bool:
+    """Check if a job has been cancelled by the user"""
+    try:
+        result = supabase.table('video_jobs').select('status').eq('id', job_id).single().execute()
+        if result.data:
+            return result.data.get('status') == 'cancelled'
+        return False
+    except Exception as e:
+        print(f"Error checking job cancellation: {e}")
+        return False
+
 def update_job_status(job_id: str, status: str, progress: int = 0, status_message: str = None, error_message: str = None, output_url: str = None):
     """Update job status in Supabase with detailed status message"""
     try:
@@ -403,6 +414,12 @@ def process_job(job: dict):
     print(f"{'='*50}")
     
     send_heartbeat('busy')
+    
+    # Check if job was cancelled before we even start
+    if is_job_cancelled(job_id):
+        print(f"  Job {job_id[:8]} was cancelled before processing started")
+        return
+    
     update_job_status(job_id, 'processing', 2, f"🚀 Starting job for {channel_name}...")
     update_job_status(job_id, 'processing', 5, f"📁 Creating output folders...")
     
@@ -491,8 +508,19 @@ def process_job(job: dict):
         # Import and run workflow
         from src.utils.workflow import WorkflowManager
         
+        # Track if job was cancelled
+        job_cancelled = False
+        
         # Create a callback to update job status in real-time
         def status_callback(progress: int, message: str):
+            nonlocal job_cancelled
+            # Check for cancellation periodically (every status update)
+            if is_job_cancelled(job_id):
+                job_cancelled = True
+                print(f"  ⚠️ Job {job_id[:8]} was cancelled by user")
+                # Mark the task as cancelled in the task manager
+                task_manager.update_task(job_id, {"status": TaskStatus.CANCELLED})
+                return
             # Map workflow progress (0-100) to our range (25-85)
             mapped_progress = 25 + int(progress * 0.6)
             update_job_status(job_id, 'processing', mapped_progress, message)
@@ -503,6 +531,11 @@ def process_job(job: dict):
             status_callback=status_callback
         )
         
+        # Check for cancellation before starting audio
+        if is_job_cancelled(job_id):
+            print(f"  Job {job_id[:8]} was cancelled before audio generation")
+            return
+            
         update_job_status(job_id, 'processing', 15, "🎤 Starting audio generation...")
         
         # Process the task
@@ -516,6 +549,12 @@ def process_job(job: dict):
             uploaded_files_info=uploaded_files_info
         )
         
+        # Check if job was cancelled during processing
+        if job_cancelled or is_job_cancelled(job_id):
+            print(f"  Job {job_id[:8]} was cancelled during processing")
+            cleanup_temp_profile(profile_id)
+            return
+            
         update_job_status(job_id, 'processing', 88, "🔄 Finalizing output files...")
         
         # Find output video

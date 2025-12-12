@@ -7,7 +7,7 @@ import {
   Palette, Type, Timer, Sparkles, Info
 } from 'lucide-react';
 import { 
-  createVideoJob, getVideoJobs, deleteVideoJob, subscribeToVideoJobs, 
+  createVideoJob, getVideoJobs, deleteVideoJob, cancelVideoJob, subscribeToVideoJobs, 
   getWorkerStatus, subscribeToWorkerStatus, type VideoJob, type WorkerHeartbeat,
   getRedditProfiles, createRedditProfile, updateRedditProfile, deleteRedditProfile, 
   subscribeToRedditProfiles, type RedditProfile
@@ -1393,6 +1393,28 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                                 <JobStepIndicator currentStep={getStepFromProgress(job.progress || 0)} />
                               </div>
                             )}
+                            {/* Cancel button for queued/processing jobs */}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm('Cancel this job? This cannot be undone.')) {
+                                  try {
+                                    await cancelVideoJob(job.id);
+                                    setJobs(prev => prev.map(j => 
+                                      j.id === job.id 
+                                        ? { ...j, status: 'cancelled', status_message: 'Cancelled by user' } 
+                                        : j
+                                    ));
+                                  } catch (err) {
+                                    console.error('Failed to cancel job:', err);
+                                  }
+                                }
+                              }}
+                              className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium text-[#f87171] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] hover:bg-[rgba(239,68,68,0.15)] hover:border-[rgba(239,68,68,0.3)] transition-colors flex items-center justify-center gap-1"
+                            >
+                              <XCircle className="w-3 h-3" />
+                              Cancel Job
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1408,25 +1430,33 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                 <CheckCircle2 className="w-4 h-4 text-[#4ade80]" />
                 <h3 className="text-sm font-medium text-[#a1a1aa]">Finished</h3>
                 <span className="px-1.5 py-0.5 rounded-full bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-xs">
-                  {jobs.filter(j => j.status === 'completed' || j.status === 'failed').length}
+                  {jobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled').length}
                 </span>
               </div>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {jobs.filter(j => j.status === 'completed' || j.status === 'failed').length === 0 ? (
+                {jobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled').length === 0 ? (
                   <div className="text-center py-8 text-[#52525b] border border-dashed border-[rgba(168,85,247,0.15)] rounded-xl">
                     <p className="text-sm">No finished jobs</p>
                   </div>
                 ) : (
-                  jobs.filter(j => j.status === 'completed' || j.status === 'failed').map(job => {
+                  jobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled').map(job => {
                     const inputData = job.input_data as any;
                     const scriptCount = inputData.scripts?.length || 1;
                     const profilePic = inputData.profile_pic;
                     
                     return (
-                      <div key={job.id} className="p-3 rounded-xl bg-[rgba(15,12,25,0.4)] border border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)] transition-colors group">
+                      <div key={job.id} className={`p-3 rounded-xl border transition-colors group ${
+                        job.status === 'cancelled' 
+                          ? 'bg-[rgba(113,113,122,0.05)] border-[rgba(113,113,122,0.2)]' 
+                          : 'bg-[rgba(15,12,25,0.4)] border-[rgba(168,85,247,0.15)] hover:border-[rgba(168,85,247,0.25)]'
+                      }`}>
                         <div className="flex items-center gap-3">
                           {/* Profile Picture */}
-                          <div className="w-10 h-10 rounded-full bg-[rgba(168,85,247,0.2)] overflow-hidden border-2 border-[rgba(168,85,247,0.3)] flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-full overflow-hidden border-2 flex-shrink-0 ${
+                            job.status === 'cancelled' 
+                              ? 'bg-[rgba(113,113,122,0.2)] border-[rgba(113,113,122,0.3)] opacity-60' 
+                              : 'bg-[rgba(168,85,247,0.2)] border-[rgba(168,85,247,0.3)]'
+                          }`}>
                             {profilePic ? (
                               <img src={profilePic} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -1438,10 +1468,14 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-[#f8fafc] font-medium text-sm truncate">{inputData.channel_name || 'Untitled'}</p>
+                              <p className={`font-medium text-sm truncate ${job.status === 'cancelled' ? 'text-[#71717a]' : 'text-[#f8fafc]'}`}>{inputData.channel_name || 'Untitled'}</p>
                               {job.status === 'completed' ? (
                                 <span className="px-2 py-0.5 rounded-full bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-xs">
                                   Ready
+                                </span>
+                              ) : job.status === 'cancelled' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-[rgba(113,113,122,0.15)] text-[#71717a] text-xs">
+                                  Cancelled
                                 </span>
                               ) : (
                                 <span className="px-2 py-0.5 rounded-full bg-[rgba(248,113,113,0.15)] text-[#f87171] text-xs">

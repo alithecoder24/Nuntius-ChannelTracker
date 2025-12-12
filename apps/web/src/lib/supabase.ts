@@ -364,6 +364,20 @@ export async function deleteVideoJob(jobId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function cancelVideoJob(jobId: string): Promise<void> {
+  // Mark job as cancelled - the worker will detect this and stop processing
+  const { error } = await supabase
+    .from('video_jobs')
+    .update({ 
+      status: 'cancelled',
+      status_message: 'Cancelled by user',
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', jobId);
+  
+  if (error) throw error;
+}
+
 export async function subscribeToVideoJobs(userId: string, callback: (job: VideoJob) => void) {
   return supabase
     .channel('video_jobs_changes')
