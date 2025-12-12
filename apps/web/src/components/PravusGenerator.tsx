@@ -361,11 +361,25 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
   
   // Load profiles on mount
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const loaded = getStoredProfiles();
     console.log('[Profiles] Loaded from localStorage:', loaded.map(p => p.channel_name));
+    
     if (loaded.length > 0) {
       setProfiles(loaded);
-      // Consolidate to main key
+      
+      // Clean up: remove ALL old keys to free space, keep only STORAGE_KEY
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key !== STORAGE_KEY && (key.includes('pravus') || key.includes('profile'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+      
+      // Save consolidated profiles to main key only
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded)); } catch {}
     }
   }, []);
@@ -379,22 +393,35 @@ export default function PravusGenerator({ userId }: PravusGeneratorProps) {
     // Update React state
     setProfiles(newProfiles);
     
-    // Save to localStorage
+    // Save to localStorage (only to STORAGE_KEY to save space)
     try {
       const json = JSON.stringify(newProfiles);
       localStorage.setItem(STORAGE_KEY, json);
-      
-      // Verify immediately
-      const verify = localStorage.getItem(STORAGE_KEY);
-      if (verify !== json) {
-        console.error('[Profiles] SAVE FAILED! localStorage rejected the write');
-        alert('Failed to save profile! Your browser may be blocking storage.');
-      } else {
-        console.log('[Profiles] ✓ Saved successfully, count:', newProfiles.length);
-      }
-    } catch (e) {
+      console.log('[Profiles] ✓ Saved successfully, count:', newProfiles.length);
+    } catch (e: unknown) {
       console.error('[Profiles] Save error:', e);
-      alert('Failed to save profile: ' + e);
+      // If quota exceeded, try to clear old keys and retry
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        console.log('[Profiles] Clearing old storage keys...');
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key !== STORAGE_KEY && (key.includes('pravus') || key.includes('profile'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+        
+        // Retry save
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfiles));
+          console.log('[Profiles] ✓ Saved after cleanup');
+        } catch (e2) {
+          alert('Storage is full! Please clear your browser data or remove some profiles.');
+        }
+      } else {
+        alert('Failed to save profile: ' + e);
+      }
     }
   };
 
